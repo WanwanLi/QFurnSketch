@@ -34,18 +34,20 @@ class QSketch : public QObject
 	bool load(QString fileName);
 	QPainterPath& operator[](int i);
 	static enum{MOVE, LINE, CUBIC};
+	bool displayGroundPlane=false;
 	veci point2D, point3D; vec point4D;
 	QString analysisFile="QSketch.sky";
-	void drawPlane(QPainter& painter);
 	void drawMarkers(QPainter& painter);
 	enum{INITIAL, ANALYZED, OPTIMIZED};
 	void drawProgressBar(QPainter& painter);
+	void drawGroundPlane(QPainter& painter);
 
 	private:
+	vec4 groundPlane;
 	void updatePainterPaths();
 	bool load(QStringList& list);
 	vec3 planeCenter=vec3(0, -0.25, 0);
-	int planeGrids=20;qreal planeSize=5;
+	int planeGrids=20;qreal planeSize=20;
 	QVector<QPainterPath> painterPaths;
 	bool load(QStringList& list, bool isPoint3D);
 	void drawLine(QPainter& painter, vec3 v0, vec3 v1);

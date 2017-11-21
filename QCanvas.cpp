@@ -28,8 +28,8 @@ void QCanvas::getPens()
 {
 	this->pen=QPen(Qt::blue, 10, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 	this->marker=QPen(Qt::red, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
-	this->plane=QPen(Qt::yellow, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 	this->progressBar=QPen(Qt::green, 10, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin);
+	this->groundPlane=QPen(Qt::cyan, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 }
 bool QCanvas::loadImage(QString fileName)
 {
@@ -170,12 +170,12 @@ void QCanvas::drawSketch()
 		painter.setPen(pen);
 		painter.drawPath(sketch[i]);
 	}
-	painter.setPen(plane);
-	sketch.drawPlane(painter);
 	painter.setPen(marker);
 	sketch.drawMarkers(painter);
 	painter.setPen(progressBar);
 	sketch.drawProgressBar(painter);
+	painter.setPen(groundPlane);
+	sketch.drawGroundPlane(painter);
 }
 QColor QCanvas::color(int index)
 {

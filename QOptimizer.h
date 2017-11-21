@@ -21,7 +21,7 @@ class QOptimizer : public QObject
 
 	public:
 	QEnergy* energy;
-	int iterations=1000;
+	int iterations=4000;
 	QOptimizer(QThread* thread);
 	QString fileName="QOptimizer.";
 	ISolver<QProblem, 1>  QSolver();

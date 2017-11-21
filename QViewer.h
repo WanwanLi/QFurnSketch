@@ -17,6 +17,7 @@ class QViewer
 	QPoint lookAt(qreal x, qreal y, qreal z);
 	void operator<<(QStringList& stringList);
 	void operator>>(QTextStream& textStream);
+	vec3* getTNBSpace(const vec4& plane);
 	qreal rotateSpeed=0.4, translateSpeed=0.5;
 	QPoint lookAt(int x, int y, const vec4& plane);
 	qreal clamp(qreal value, qreal min, qreal max);

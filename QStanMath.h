@@ -14,6 +14,7 @@ Template(T) class QStanMath
 	static T min(T x, T y){return x<y?x:y;}
 	static T max(T x, T y){return x>y?x:y;}
 	static Vector4t createPlane(T A, T B, T C, T D);
+	static Vector3t getNormal(const Vector4t& plane);
 	static Vector3t centerPoint(const Vector4t& plane);
 	static QVector<T> toQVector(const VectorXt& vectorXt);
 	static QVector<T> toQVector(const MatrixXt& matrixXt);
@@ -25,8 +26,20 @@ Template(T) class QStanMath
 	static Vector3t projectedPoint(const Vector3t& point, const Vector4t& plane);
 	static MatrixXt projectedCurve(const MatrixXt& curve, const Vector4t& plane);
 	static Vector3t intersectPlane(const Vector3t& origin, const Vector3t& direction, const Vector4t& plane);
+	static T cosAngle(const Vector3t& begin1, const Vector3t& end1, const Vector3t& begin2, const Vector3t& end2);
 	static T integrateDistanceSquare(const Vector3t& P0, const Vector3t& P1, const Vector3t& Q0, const Vector3t& Q1);
 };
+Template(T) Vector3t QStanMath<T>::getNormal(const Vector4t& plane)
+{
+	Vector3t normal=plane.head(3);
+	return normal/normal.norm();
+}
+Template(T) T QStanMath<T>::cosAngle(const Vector3t& begin1, const Vector3t& end1, const Vector3t& begin2, const Vector3t& end2)
+{
+	Vector3t dir1=(end1-begin1).normalized();
+	Vector3t dir2=(end2-begin2).normalized();
+	return dir1.dot(dir2);
+}
 Template(T) Vector4t QStanMath<T>::createPlane(T A, T B, T C, T D)
 {
 	Vector4t plane(A, B, C, D);

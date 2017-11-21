@@ -27,7 +27,6 @@ class QCanvas : public QWidget
 
 	private:
 	QPen pen;
-	QPen plane;
 	QPoint point;
 	QPen marker;
 	QImage image;
@@ -37,8 +36,9 @@ class QCanvas : public QWidget
 	QSketch sketch;
 	QWidget* widget;
 	void clearImage();
-	QPen progressBar;
 	void drawSketch();
+	QPen progressBar;
+	QPen groundPlane;
 	bool isMousePressed;
 	QColor color(int index);
 	QVector<QColor> colors;

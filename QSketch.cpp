@@ -13,27 +13,32 @@ void readPoint4D(QTextStream& textStream, vec& point4D)
 {
 	for(int i=0; i<4; i++)point4D<<textStream.readLine().toDouble();
 }
+void readVector4D(QTextStream& textStream, vec4& vector4D)
+{
+	for(int i=0; i<4; i++)vector4D[i]=textStream.readLine().toDouble();
+}
 void QSketch::drawLine(QPainter& painter, vec3 v0, vec3 v1)
 {
 	QPoint p0=viewer.lookAt(v0.x(), v0.y(), v0.z());
 	QPoint p1=viewer.lookAt(v1.x(), v1.y(), v1.z());
 	painter.drawLine(p0, p1);
 }
-void QSketch::drawPlane(QPainter& painter)
+void QSketch::drawGroundPlane(QPainter& painter)
 {
-	if(!is(OPTIMIZED))return;
-	vec4 plane=viewer.createPlane(planeCenter, vec3(0, 1, 0));
-	vec3 h0=planeCenter-vec3(planeSize/2, plane.w(), planeSize/2), v0=h0;
-	vec3 h1=h0+vec3(planeSize, 0, 0), v1=v0+vec3(0, 0, planeSize);
-	qreal interval=planeSize/(planeGrids-1);
+	//if(!(is(OPTIMIZED)&&displayGroundPlane))return;
+	if(!(is(OPTIMIZED)))return;
+	vec3 center=viewer.centerPoint(groundPlane);
+	vec3* units=viewer.getTNBSpace(groundPlane);
+	vec3 t=units[0], n=units[1], b=units[2];
+	vec3 u0=center+planeSize/2*(t+b);
+	vec3 u1=center+planeSize/2*(-t+b);
+	vec3 v0=center+planeSize/2*(t-b);
+	vec3 v1=center+planeSize/2*(-t-b);
 	for(int i=0; i<planeGrids; i++)
 	{
-		drawLine(painter, h0, h1); 
-		drawLine(painter, v0, v1); 
-		h0.setZ(h0.z()+interval);
-		h1.setZ(h1.z()+interval);
-		v0.setX(v0.x()+interval);
-		v1.setX(v1.x()+interval);
+		qreal k=(i+0.0)/(planeGrids-1.0);
+		drawLine(painter, u0*k+v0*(1-k), u1*k+v1*(1-k)); 
+		drawLine(painter, u0*k+u1*(1-k), v0*k+v1*(1-k)); 
 	}
 }
 void QSketch::setValue(int value)
@@ -43,6 +48,7 @@ void QSketch::setValue(int value)
 	this->path.clear(); this->point4D.clear(); 
 	QTextStream textStream(&file);
 	this->analyzer.planesSize=textStream.readLine().toInt();
+	readVector4D(textStream, groundPlane);
 	while(!textStream.atEnd())
 	{
 		int path=textStream.readLine().toInt();
@@ -54,6 +60,11 @@ void QSketch::setValue(int value)
 	}
 	file.close(); file.remove(); 
 	this->iterations=value; 
+	if(this->iterations>=optimizer->iterations)
+	{
+		this->iterations=0;
+		this->displayGroundPlane=true;
+	}
 	if(!is(OPTIMIZED))
 	{
 		while(painterPaths.size()<analyzer.planesSize)
@@ -161,7 +172,7 @@ bool QSketch::load(QStringList& list)
 }
 void QSketch::drawProgressBar(QPainter& painter)
 {
-	qreal t=iterations+0.0;
+	qreal t=this->iterations;
 	qreal w=viewer.size().width();
 	qreal m=optimizer->iterations;
 	painter.drawLine(0, 0, w*t/m, 0);
@@ -186,7 +197,6 @@ bool QSketch::analyze()
 }
 bool QSketch::optimize()
 {
-	//if(!is(ANALYZED))return false;
 	if(thread->isRunning())return false;
 	else thread->start();
 	return true;

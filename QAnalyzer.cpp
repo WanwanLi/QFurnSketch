@@ -46,7 +46,7 @@ int QAnalyzer::count(int value)
 		case COPLANAR: return 4;
 		case SAME_POINTS: return 2;
 		case PERPENDICULAR: return 4;
-		case CONTACT_POINTS: return 6;
+		case CONTACT_POINTS: return 3;
 		case PARALLEL_PLANES: return 2;
 	}
 	return 0;
@@ -248,6 +248,7 @@ void QAnalyzer::update()
 	regularity<<contactPoints[1];
 	regularity<<contactPoints[2];
 	regularity<<contactPoints[3];
+	regularity<<CONTACT_POINTS;
 	regularity<<contactPoints[5];
 	regularity<<contactPoints[6];
 	regularity<<contactPoints[7];
@@ -700,7 +701,7 @@ void QAnalyzer::save(QString fileName)
 		}
 	}
 	#undef planes
-	textStream<<"PLANES "<<planesSize<<endl;
+	textStream<<"PLANES "<<planesSize+1<<endl;
 	for(int i=0; i<regularity.size(); i++)
 	{
 		textStream<<toString(regularity[i]); int n=count(regularity[i]);
@@ -788,13 +789,9 @@ void QAnalyzer::drawRegularity(QPainter& painter)
 			case CONTACT_POINTS: 
 			{
 				int r1=regularity[++i], r2=regularity[++i], r3=regularity[++i];
-				int r4=regularity[++i], r5=regularity[++i], r6=regularity[++i];
-				vec2 p1=pointOf(r1), p2=pointOf(r2);
-				vec2 p3=pointOf(r4), p4=pointOf(r5); int dy=15;
+				vec2 p1=pointOf(r1), p2=pointOf(r2); int dy=15;
 				painter.drawText(QPointF((int)p1.x(), (int)p1.y()+dy), "_|_"); 
-				painter.drawText(QPointF((int)p2.x(), (int)p2.y()+dy), "_|_"); 
-				painter.drawText(QPointF((int)p3.x(), (int)p3.y()+dy), "_|_"); 
-				painter.drawText(QPointF((int)p4.x(), (int)p4.y()+dy), "_|_"); break;
+				painter.drawText(QPointF((int)p2.x(), (int)p2.y()+dy), "_|_"); break;
 			}
 			case PARALLEL_PLANES: i+=2; break;
 			case DISTANCE: i+=4; break;

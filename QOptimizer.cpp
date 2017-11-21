@@ -31,6 +31,11 @@ void QOptimizer::emitValueChanged(int value, const VectorXd& variable)
 	MatrixXv points=energy->getSketchPoints(variable);
 	QTextStream textStream(&file);
 	textStream<<num(energy->planeSize)<<"\n";
+	Vector4v groundPlane=energy->getGroundPlane(variable);
+	textStream<<num(groundPlane(0).val())<<"\n";
+	textStream<<num(groundPlane(1).val())<<"\n";
+	textStream<<num(groundPlane(2).val())<<"\n";
+	textStream<<num(groundPlane(3).val())<<"\n";
 	for(int i=0, j=0; i<path.size(); i++)
 	{
 		#define S QSketch

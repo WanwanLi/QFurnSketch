@@ -1,5 +1,6 @@
 #include "QViewer.h"
 #define dot(x, y) vec3::dotProduct(x, y)
+#define cross(x, y) vec3::crossProduct(x, y)
 
 QSize QViewer::size()
 {
@@ -95,4 +96,17 @@ vec3 QViewer::centerPoint(const vec4& plane)
 {
 	qreal A=plane.x(), B=plane.y(), C=plane.z(), D=plane.w(), E=1e-5; vec3 P(0, 0, 0);
 	if(qAbs(A)>E)P[0]=-D/A; else if(qAbs(B)>E)P[1]=-D/B; else P[2]=-D/C; return P;
+}
+vec3* QViewer::getTNBSpace(const vec4& plane)
+{
+	vec3 x=vec3(1, 0, 0), y=vec3(0, 1, 0), z=vec3(0, 0, 1);
+	vec3 normal=plane.toVector3D().normalized();
+	qreal xDotn=qAbs(dot(x, normal));
+	qreal yDotn=qAbs(dot(y, normal));
+	qreal zDotn=qAbs(dot(z, normal));
+	qreal min=qMin(xDotn, qMin(yDotn, zDotn));
+	vec3 vector=xDotn==min?x:(yDotn==min?y:z);
+	vec3 tangent=cross(normal, vector).normalized();
+	vec3 bitangent=cross(normal, tangent).normalized();
+	return new vec3[3]{tangent, normal, bitangent};
 }

@@ -47,9 +47,7 @@ var QEnergy::cosAngle(const VectorXv& variables, int i0, int i1, int i2)
 	Vector3v p0=sketchPoint(variables, i0);
 	Vector3v p1=sketchPoint(variables, i1);
 	Vector3v p2=sketchPoint(variables, i2);
-	Vector3v d1=(p0-p1).normalized();
-	Vector3v d2=(p2-p1).normalized();
-	return d1.dot(d2);
+	return QVarMath::cosAngle(p1, p0, p1, p2);
 }
 void addCosAngle(var cosA, var& sinS, var& cosS, int& size)
 {
@@ -83,17 +81,23 @@ var QEnergy::parallelEnergy(const Vector4v& plane1, const Vector4v& plane2)
 }
 var QEnergy::distanceEnergy(const Vector2v& point1, const Vector4v& plane1, const Vector2v& point2, const Vector4v& plane2)
 {
-#ifdef QDB_DE 
-qDebug()<<"distanceEnergy="<< (sketchPoint(point1, plane1)-sketchPoint(point2, plane2)).squaredNorm().val();
-#endif
 	return (sketchPoint(point1, plane1)-sketchPoint(point2, plane2)).squaredNorm();
 }
-var QEnergy::verticalEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane)
+var QEnergy::verticalEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane, const Vector4v& ground)
 {
 	Vector3v start=sketchPoint(startPoint, plane);
 	Vector3v end=sketchPoint(endPoint, plane);
-	var dot=(end-start).normalized().dot(Vector3v(0, 1, 0));
-	return 1-dot*dot;
+	Vector3v up=QVarMath::getNormal(ground);
+	Vector3v dir=(end-start).normalized();
+	var dotUp=dir.dot(Vector3v(0, 1, 0));
+	//var dotUp=dir.dot(up);
+	return 1-dotUp*dotUp;
+/*
+	Vector3v up=QVarMath::getNormal(ground);
+	Vector3v normal=QVarMath::getNormal(plane);
+	var dotUp=normal.dot(up);
+	return dotUp*dotUp;
+*/
 }
 var QEnergy::perpendicularEnergy(const Vector2v& leftPoint, const Vector2v& midPoint, const Vector2v& rightPoint, const Vector4v& plane)
 {
@@ -119,7 +123,9 @@ var QEnergy::coplanarEnergy(const Vector2v& startPoint, const Vector2v& endPoint
 	Vector3v end1=sketchPoint(endPoint, srcPlane);
 	Vector3v start2=QVarMath::projectedPoint(start1, destPlane);
 	Vector3v end2=QVarMath::projectedPoint(end1, destPlane);
-	return QVarMath::integrateDistanceSquare(start1, end1, start2, end2);
+	var cosAngle=QVarMath::cosAngle(start1, end1, start2, end2);
+	var directionDistance=1-cosAngle*cosAngle;
+	return QVarMath::integrateDistanceSquare(start1, end1, start2, end2)+directionDistance;
 }
 var QEnergy::collinearEnergy(const MatrixXv& curve, const Vector4v& plane, int start, int end)
 {
@@ -127,43 +133,29 @@ var QEnergy::collinearEnergy(const MatrixXv& curve, const Vector4v& plane, int s
 	MatrixXv projectedcurve=QVarMath::projectedCurve(subcurve, plane);
 	return QVarMath::distanceSquareBetween(subcurve, projectedcurve);
 }
-//#define QDB_GCE 0
-//#define QDB_GCE_D 0
-var QEnergy::groundCoplanarEnergy(const Vector2v& startPoint1, const Vector2v& endPoint1, const Vector4v& plane1, const Vector2v& startPoint2, const Vector2v& endPoint2, const Vector4v& plane2)
-{
-	Vector3v start1=sketchPoint(startPoint1, plane1);
-	Vector3v end1=sketchPoint(endPoint1, plane1);
-#ifdef QDB_GCE_D
-qDebug()<<"start1.y="<<start1(1).val();
-qDebug()<<"end1.y="<<end1(1).val();
-qDebug()<<"|d1.y|="<<abs(start1(1)-end1(1)).val();
-#endif
-	Vector3v start2=sketchPoint(startPoint2, plane2);
-	Vector3v end2=sketchPoint(endPoint2, plane2);
-#ifdef QDB_GCE_D
-qDebug()<<"start2.y="<<start2(1).val();
-qDebug()<<"end2.y="<<end2(1).val();
-qDebug()<<"|d2.y|="<<abs(start2(1)-end2(1)).val();
-#endif
-	var weight=10, dy=start1(1)-end1(1), sum=dy*dy;
-	dy=start2(1)-end2(1); sum+=dy*dy;
-	dy=start1(1)-end2(1); sum+=dy*dy;
-	dy=start2(1)-end1(1); 
-#ifdef QDB_GCE 
-qDebug()<<"groundCoplanarEnergy="<<(weight*(sum+dy*dy)).val();
-#endif
-return weight*(sum+dy*dy);
-}
 //#define  QDE 0
 #ifdef QDE //QDebug For Energy Term
 #define QD(s) qDebug()<<s<<" : tmp energy="<<energy.val()
 #else 
 #define QD(s) 0
 #endif
+var QEnergy::weight(int type)
+{
+	#define R QAnalyzer
+	switch(type)
+	{
+		case R::VERTICAL: return 1;
+		case R::CONTACT_POINTS: return 10;
+	}
+	return 1;
+	#undef R
+}
 var QEnergy::totalEnergy(const VectorXv& variables)
 {
-	#define planeOf(x) variables.segment(x*4, 4)
+	#define planeOf(x) variables.segment((x)*4, 4)
 	#define pointOf(x) pointAt(variables, x)
+	Vector4v ground=planeOf(planeSize-1);
+	ground=QVarMath::normalizedPlane(ground);
 	var energy=depthEnergy(variables);
 	//energy+=accuracyEnergy(variables);
 	//energy+=foreshorteningEnergy(variables);
@@ -173,14 +165,14 @@ var QEnergy::totalEnergy(const VectorXv& variables)
 		#define t(x) regularity(i+x)
 		switch(t(0))
 		{
-			case R::SAME_POINTS: energy+=stdDevAnglesEnergy(variables, t(1), t(2)-1); QD("SDA"); break;
-			case R::PARALLEL_PLANES: energy+=parallelEnergy(planeOf(t(1)), planeOf(t(2))); QD("PARP"); break;
-			case R::VERTICAL: energy+=verticalEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3))); QD("VER"); break;
-			case R::DISTANCE: energy+=distanceEnergy(pointOf(t(1)), planeOf(t(2)), pointOf(t(3)), planeOf(t(4))); QD("DIS"); break;
-			case R::COPLANAR: energy+=coplanarEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), planeOf(t(4))); QD("COP"); break;
-			case R::PERPENDICULAR: energy+=perpendicularEnergy(pointOf(t(1)), pointOf(t(2)), pointOf(t(3)), planeOf(t(4))); QD("PER"); break;
-			case R::PARALLEL: energy+=parallelEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), pointOf(t(4)), pointOf(t(5)), planeOf(t(6))); QD("PAR"); break;
-			case R::CONTACT_POINTS: energy+=groundCoplanarEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), pointOf(t(4)), pointOf(t(5)), planeOf(t(6))); QD("CON"); break;
+			case R::SAME_POINTS: energy+=weight(t(0))*stdDevAnglesEnergy(variables, t(1), t(2)-1); QD("SDA"); break;
+		//	case R::PARALLEL_PLANES: energy+=weight(t(0))*parallelEnergy(planeOf(t(1)), planeOf(t(2))); QD("PARP"); break;
+			case R::VERTICAL: energy+=weight(t(0))*verticalEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), ground); QD("VER"); break;
+			case R::DISTANCE: energy+=weight(t(0))*distanceEnergy(pointOf(t(1)), planeOf(t(2)), pointOf(t(3)), planeOf(t(4))); QD("DIS"); break;
+			case R::COPLANAR: energy+=weight(t(0))*coplanarEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), planeOf(t(4))); QD("COP"); break;
+			case R::CONTACT_POINTS: energy+=weight(t(0))*coplanarEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), ground); QD("GCOP"); break;
+		//	case R::PERPENDICULAR: energy+=weight(t(0))*perpendicularEnergy(pointOf(t(1)), pointOf(t(2)), pointOf(t(3)), planeOf(t(4))); QD("PER"); break;
+			case R::PARALLEL: energy+=weight(t(0))*parallelEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), pointOf(t(4)), pointOf(t(5)), planeOf(t(6))); QD("PAR"); break;
 		}
 		i+=R::count(t(0));
 		#undef R
@@ -190,6 +182,10 @@ var QEnergy::totalEnergy(const VectorXv& variables)
 	#undef planeOf(x)
 	#undef pointOf(x)
 	return energy;
+}
+Vector4v QEnergy::getGroundPlane(const VectorXd& variables)
+{
+	return QVarMath::normalizedPlane(toVector4v(variables, (planeSize-1)*4));
 }
 Vector3v QEnergy::sketchPoint(const Vector2i& point, const Vector4v& plane)
 {
@@ -209,18 +205,6 @@ Vector3v QEnergy::sketchPoint(const VectorXv& variables, int sketchIndex)
 	int planeIndex=sketchVector(sketchIndex*3+2);
 	Vector4v plane=variables.segment(planeIndex*4, 4);
 	return sketchPoint(pointAt(variables, sketchIndex), plane);
-}
-QPoint QEnergy::canvasPoint(double x, double y, double z)
-{
-	Vector3v point=Vector3v(x, y, z);
-	Vector3v viewDirection=-forward;
-	Vector3v eye=viewDirection*viewDistance;
-	Vector3v focus=viewDirection*(viewDistance-focalLength);
-	Vector4v viewPlane=QVarMath::createPlane(focus, viewDirection);
-	Vector3v position=QVarMath::intersectPlane(eye, point-eye, viewPlane);
-	x=screenScale*position.dot(right).val()*sketchWidth/2+sketchWidth/2; 
-	y=screenScale*aspectRatio*position.dot(up).val()*sketchHeight/2+sketchHeight/2;
-	return QPoint((int)x, sketchHeight-(int)y);
 }
 MatrixXv QEnergy::getSketchPoints(const VectorXd& variable)
 {
@@ -277,7 +261,8 @@ QEnergy::QEnergy(veci path, veci sketch, int planesSize, veci regularity, QViewe
 	std::vector<int> s=sketch.toStdVector(), r=regularity.toStdVector();
 	this->regularity=Map<VectorXi>(r.data(), r.size());
 	this->sketchVector=Map<VectorXi>(s.data(), s.size());
-	vec variable; for(int i=0; i<planesSize; i++)variable<<0<<0<<1<<0;
+	vec variable; for(int i=0; i<planesSize-1; i++)variable<<0<<0<<1<<0;
+	variable<<ground.x()<<ground.y()<<ground.z()<<ground.w();
 	for(int i=0; i<sketch.size(); i+=3)variable<<sketch[i+0]<<sketch[i+1];
 	std::vector<double> v=variable.toStdVector(); 
 	this->variableVector=Map<VectorXd>(v.data(), v.size());
@@ -340,4 +325,8 @@ vec QEnergy::toQVector(VectorXd vector)
 vec QEnergy::toQVector(VectorXv vector)
 {
 	vec result; for(int i=0; i<vector.size(); i++)result<<vector[i].val(); return result;
+}
+var QEnergy::decay(var distance, var speed)
+{
+	return 1-(distance*speed)*(distance*speed);
 }
