@@ -46,6 +46,7 @@ class QEnergy
 	void setupViewer(QViewer viewer);
 	Vector3v forward=Vector3v(0, 0, -1);
 	VectorXd planeVector, variableVector;
+	Vector3v lookAt(const Vector2v& point, const Vector4v& plane);
 	var depthEnergy(const VectorXv& planes);
 	var totalEnergy(const VectorXv& variables);
 	void copySameGradients(VectorXd& grad);

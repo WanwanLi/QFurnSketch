@@ -144,7 +144,9 @@ var QEnergy::weight(int type)
 	#define R QAnalyzer
 	switch(type)
 	{
-		case R::VERTICAL: return 1;
+		case R::VERTICAL: return 0.5;
+		case R::DISTANCE: return 2;
+		case R::COPLANAR: return 2;
 		case R::CONTACT_POINTS: return 10;
 	}
 	return 1;
@@ -191,7 +193,7 @@ Vector3v QEnergy::sketchPoint(const Vector2i& point, const Vector4v& plane)
 {
 	return sketchPoint(Vector2v(point(0), point(1)), plane);
 }
-Vector3v QEnergy::sketchPoint(const Vector2v& point, const Vector4v& plane)
+Vector3v QEnergy::lookAt(const Vector2v& point, const Vector4v& plane)
 {
 	Vector3v viewDirection=-forward;
 	Vector3v eye=viewDirection*viewDistance;
@@ -199,6 +201,17 @@ Vector3v QEnergy::sketchPoint(const Vector2v& point, const Vector4v& plane)
 	var x=(point(0)-sketchWidth/2)/(sketchWidth/2)/screenScale;
 	var y=(point(1)-sketchHeight/2)/(sketchHeight/2)/aspectRatio/screenScale;
 	return QVarMath::intersectPlane(eye, (focus+x*right-y*up)-eye, plane);
+}
+Vector3v QEnergy::sketchPoint(const Vector2v& point, const Vector4v& plane)
+{
+	Vector3v viewDirection=-forward;
+	Vector3v eye=viewDirection*viewDistance;
+	Vector3v focus=viewDirection*(viewDistance-focalLength);
+	var x=(point(0)-sketchWidth/2)/(sketchWidth/2);//screenScale;
+	var y=(point(1)-sketchHeight/2)/(sketchHeight/2)/aspectRatio;//screenScale;
+	Vector3v pixel=Vector3v(x, -y, 0);
+	Vector3v	direction=(Vector3v(0, -0.1, -1)).normalized();
+	return QVarMath::intersectPlane(pixel-direction, direction, plane);
 }
 Vector3v QEnergy::sketchPoint(const VectorXv& variables, int sketchIndex)
 {
