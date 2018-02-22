@@ -28,8 +28,9 @@ QMenuBar* QWindow::newQMenuBar()
 	action=menu->addAction("Clear", canvas, &QCanvas::clear, QKeySequence(tr("Ctrl+c")));
 	action=menu->addAction("Resize", canvas, &QCanvas::resizeImage, QKeySequence(tr("Ctrl+e")));
 	action=menu->addAction("Reset View", canvas, &QCanvas::resetViewInfo, QKeySequence(tr("Ctrl+t")));
+	action=menu->addAction("Inflate Sketch", canvas, &QCanvas::inflateSketch, QKeySequence(tr("Ctrl+i")));
 	action=menu->addAction("Analyze Sketch", canvas, &QCanvas::analyzeSketch, QKeySequence(tr("Ctrl+a")));
-	action=menu->addAction("Optimize Sketch", canvas, &QCanvas::optimizeSketch, QKeySequence(tr("Ctrl+m")));
+	action=menu->addAction("Normalize Sketch", canvas, &QCanvas::normalizeSketch, QKeySequence(tr("Ctrl+n")));
 	action=menu->addAction("Set Camera Upward", canvas, &QCanvas::setCameraUpward, QKeySequence(tr("Ctrl+u")));
 	action->setCheckable(true); action->setChecked(true); canvas->setCameraUpward();
 	menuBar->addMenu(menu);

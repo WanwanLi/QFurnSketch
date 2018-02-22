@@ -15,16 +15,18 @@ class QOptimizer : public QObject
 	void setValue(int value);
 
 	public slots:
-	void start();
 	void quit();
+	void start();
 	void valueChanged(int iterations, const VectorXd& variable);
 
 	public:
+	int iterations;
 	QEnergy* energy;
-	int iterations=4000;
+	QString sketchFile;
+	static QString fileName;
 	QOptimizer(QThread* thread);
-	QString fileName="QOptimizer.";
 	ISolver<QProblem, 1>  QSolver();
+	void save(QString fileName, QVector<qreal> vector);
 	void connectToThread(QThread* thread);
 	void emitValueChanged(int value, const VectorXd& variable);
 	static enum

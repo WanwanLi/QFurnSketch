@@ -3,19 +3,54 @@
 #include "QSketch.h"
 #include "QOptimizer.h"
 
+QString QSketch::sketch2DFile="QSketch2D.sky";
+QString QSketch::sketch3DFile="QSketch3D.sky";
+
 QSketch::QSketch()
 {
-	this->thread=new QThread();
-	this->optimizer=new QOptimizer(thread);
+	this->inflator=new QThread();
+	this->normalizer=new QThread();
+	this->optimizer2D=newQOptimizer(inflator, sketch2DFile, 4000);
+	this->optimizer3D=newQOptimizer(normalizer, sketch3DFile, 600);
+}
+QSketch::QSketch(veci path, veci point2D, QViewer viewer)
+{
+	this->path=path;
+	this->viewer=viewer;
+	this->point2D=point2D;
+}
+QOptimizer* QSketch::newQOptimizer(QThread* thread, QString sketchFile, int iterations)
+{
+	QOptimizer* optimizer=new QOptimizer(thread);
 	connect(optimizer, &QOptimizer::setValue, this, &QSketch::setValue);
+	connect(optimizer, &QOptimizer::finished, this, &QSketch::finished);
+	optimizer->sketchFile=sketchFile;
+	optimizer->iterations=iterations;
+	return optimizer;
 }
 void readPoint4D(QTextStream& textStream, vec& point4D)
 {
 	for(int i=0; i<4; i++)point4D<<textStream.readLine().toDouble();
 }
+void readVector3D(QTextStream& textStream, vec3& vector3D)
+{
+	for(int i=0; i<3; i++)vector3D[i]=textStream.readLine().toDouble();
+}
 void readVector4D(QTextStream& textStream, vec4& vector4D)
 {
 	for(int i=0; i<4; i++)vector4D[i]=textStream.readLine().toDouble();
+}
+void QSketch::drawStatusText(QPainter& painter)
+{
+	QString statusText;
+	switch(state)
+	{
+		case INITIALIZED: statusText=""; break;
+		case ANALYZED:  statusText="Sketh is analyzed."; break;
+		case INFLATED:  statusText="Sketh is inflated."; break;
+		case NORMALIZED:  statusText="Sketh is normalized"; break;
+	}
+	painter.drawText(20, 20, statusText);
 }
 void QSketch::drawLine(QPainter& painter, vec3 v0, vec3 v1)
 {
@@ -23,10 +58,57 @@ void QSketch::drawLine(QPainter& painter, vec3 v0, vec3 v1)
 	QPoint p1=viewer.lookAt(v1.x(), v1.y(), v1.z());
 	painter.drawLine(p0, p1);
 }
+void QSketch::drawRegularity3D(QPainter& painter, vec points, QString tag)
+{
+	for(int i=0; i<points.size(); i+=3)
+	{
+		qreal x=points[i+0];
+		qreal y=points[i+1];
+		qreal z=points[i+2];
+		QPoint p=viewer.lookAt(x, y, z);
+		painter.drawText(p, tag);
+	}
+}
+void QSketch::drawRegularity3D(QPainter& painter)
+{
+	if(!displayRegularity3D)return;
+	QFont font=painter.font();
+	QFont newFont; newFont.setPointSize(30);
+	painter.setFont(newFont);
+	this->drawRegularity3D(painter, horizontal, "=");
+	newFont.setPointSize(20);
+	painter.setFont(newFont);
+	this->drawRegularity3D(painter, forward, "ll");
+	painter.setFont(font);
+}
+void QSketch::drawAxis(QPainter& painter)
+{
+	QPoint center=QPoint
+	(
+		-viewer.width/2+50,
+		-viewer.height/2+100
+	);
+	QPoint center1=QPoint(0, 0);
+	qreal length=0.25, length1=0.4;
+	this->drawAxis(painter, xAxis, length, center);
+	this->drawAxis(painter, yAxis, length, center);
+	this->drawAxis(painter, zAxis, length, center);
+	this->drawAxis(painter, viewer.xAxis, length1, center1);
+	this->drawAxis(painter, viewer.yAxis, length1, center1);
+	this->drawAxis(painter, viewer.zAxis, length1, center1);
+
+}
+void QSketch::drawAxis(QPainter& painter, vec3 axis, qreal length, QPoint center)
+{
+	if(!displayGroundPlane)return;
+	vec3 dir=length*axis;
+	QPoint startPoint=viewer.lookAt(0, 0, 0);
+	QPoint endPoint=viewer.lookAt(dir.x(), dir.y(), dir.z());
+	painter.drawLine(center+startPoint, center+endPoint);
+}
 void QSketch::drawGroundPlane(QPainter& painter)
 {
-	//if(!(is(OPTIMIZED)&&displayGroundPlane))return;
-	if(!(is(OPTIMIZED)))return;
+	if(!displayGroundPlane)return;
 	vec3 center=viewer.centerPoint(groundPlane);
 	vec3* units=viewer.getTNBSpace(groundPlane);
 	vec3 t=units[0], n=units[1], b=units[2];
@@ -41,14 +123,21 @@ void QSketch::drawGroundPlane(QPainter& painter)
 		drawLine(painter, u0*k+u1*(1-k), v0*k+v1*(1-k)); 
 	}
 }
+int QSketch::getOptimizingState()
+{
+	return inflator->isRunning()?INFLATED:NORMALIZED;
+}
 void QSketch::setValue(int value)
 {
-	QFile file(optimizer->fileName+num(value)); 
+	QFile file(QOptimizer::fileName+num(value)); 
 	if(!file.open(QIODevice::ReadOnly))return;
 	this->path.clear(); this->point4D.clear(); 
 	QTextStream textStream(&file);
 	this->analyzer.planesSize=textStream.readLine().toInt();
 	readVector4D(textStream, groundPlane);
+	readVector3D(textStream, xAxis);
+	readVector3D(textStream, yAxis);
+	readVector3D(textStream, zAxis);
 	while(!textStream.atEnd())
 	{
 		int path=textStream.readLine().toInt();
@@ -59,28 +148,60 @@ void QSketch::setValue(int value)
 		this->path<<path;
 	}
 	file.close(); file.remove(); 
-	this->iterations=value; 
-	if(this->iterations>=optimizer->iterations)
-	{
-		this->iterations=0;
-		this->displayGroundPlane=true;
-	}
-	if(!is(OPTIMIZED))
+	this->iterations=value;
+	if(!isOptimizing())
 	{
 		while(painterPaths.size()<analyzer.planesSize)
 		this->painterPaths<<QPainterPath();
-		this->state=OPTIMIZED;
+	}
+	this->state=getOptimizingState();
+}
+bool QSketch::isOnUpdated()
+{
+	if(isUpdated)
+	{
+		this->isUpdated=false;
+		return true;
+	}
+	else return
+	(
+		this->inflator->isRunning()||
+		this->normalizer->isRunning()
+	);
+}
+vec QSketch::open(QString fileName)
+{
+	QFile file(fileName); vec vector;
+	if(!file.open(QIODevice::ReadOnly))return vector;
+	QTextStream textStream(&file);
+	int size=textStream.readLine().toInt();
+	for(int i=0; i<size; i++)vector<<textStream.readLine().toDouble();
+	return vector;
+}
+void QSketch::finished()
+{
+	this->iterations=0;
+	this->isUpdated=true;
+	this->displayGroundPlane=true;
+	if(!displayRegularity3D)
+	{
+		this->horizontal=open("horizontal");
+		this->forward=open("forward");
+		this->displayRegularity3D=true;
 	}
 }
-bool QSketch::load()
+QSketch::QSketch(QString fileName)
 {
-	QFile file(analysisFile); 
-	#define remove(f) {f.close(); }//f.remove();}
-	if(!file.open(QIODevice::ReadOnly))return false;
-	QTextStream textStream(&file); 
-	if(load(textStream, true)){remove(file); return true;}
-	else remove(file); return false;
-	#undef remove(f)
+	this->isValid=true;
+	QFile file(fileName);
+	if(file.open(QIODevice::ReadOnly))
+	{
+		QTextStream textStream(&file); 
+		if(!load(textStream, true))
+		this->isValid=false;
+		file.close();
+	}
+	else this->isValid=false;
 }
 bool QSketch::load(QString fileName)
 {
@@ -89,7 +210,7 @@ bool QSketch::load(QString fileName)
 	QTextStream textStream(&file); this->clear(); 
 	if(load(textStream, false))
 	{
-		this->state=INITIAL; this->iterations=0; 
+		this->state=INITIALIZED; this->iterations=0;
 		this->painterPaths<<QPainterPath();
 		this->paint(); file.close(); return true;
 	}
@@ -170,11 +291,15 @@ bool QSketch::load(QStringList& list)
 	else return false;
 	return true;
 }
+QOptimizer* QSketch::optimizer()
+{
+	return inflator->isRunning()?optimizer2D:optimizer3D;
+}
 void QSketch::drawProgressBar(QPainter& painter)
 {
 	qreal t=this->iterations;
 	qreal w=viewer.size().width();
-	qreal m=optimizer->iterations;
+	qreal m=optimizer()->iterations;
 	painter.drawLine(0, 0, w*t/m, 0);
 }
 void QSketch::drawMarkers(QPainter& painter)
@@ -187,18 +312,27 @@ void QSketch::drawMarkers(QPainter& painter)
 }
 bool QSketch::analyze()
 {
-	if(!is(INITIAL))return false;
+	if(!is(INITIALIZED))return false;
 	this->analyzer.clear();
 	this->analyzer.load(this);
 	this->analyzer.run();
-	this->analyzer.save(analysisFile);
+	this->analyzer.save(sketch2DFile);
 	this->state=ANALYZED;
 	return true;
 }
-bool QSketch::optimize()
+bool QSketch::inflate()
 {
-	if(thread->isRunning())return false;
-	else thread->start();
+	if(inflator->isRunning())return false;
+	this->inflator->start();
+	return true;
+}
+bool QSketch::normalize()
+{
+	if(normalizer->isRunning())return false;
+	this->normalizer->start();
+	this->horizontal.clear();
+	this->forward.clear();
+	this->displayRegularity3D=false;
 	return true;
 }
 void QSketch::paint()
@@ -229,7 +363,7 @@ void QSketch::paint()
 void QSketch::update()
 {
 	this->updatePainterPaths();
-	if(!is(OPTIMIZED)){paint(); return;}
+	if(!isOptimizing()){paint(); return;}
 	#define lookAt(x, y, z) viewer.lookAt(x, y, z)
 	for(int i=0, j=0; i<path.size(); i++)
 	{
@@ -364,6 +498,10 @@ void QSketch::cubicTo(int x1, int y1, int x2, int y2, int x3, int y3, int index)
 QPainterPath& QSketch::operator[](int index)
 {
 	return this->painterPaths[index];
+}
+bool QSketch::isOptimizing()
+{
+	return is(INFLATED)||is(NORMALIZED);
 }
 int QSketch::length()
 {

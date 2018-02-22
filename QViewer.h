@@ -11,6 +11,9 @@ class QViewer
 	QSize size();
 	qreal width, height;
 	void resize(QSize size);
+	vec3 xAxis=vec3(1, 0, 0);
+	vec3 yAxis=vec3(0, 1, 0);
+	vec3 zAxis=vec3(0, 0, 1);
 	void rotate(QPoint rotation);
 	void translate(qreal translation);
 	vec3 centerPoint(const vec4& plane);

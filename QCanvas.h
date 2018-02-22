@@ -21,13 +21,15 @@ class QCanvas : public QWidget
 	bool isModified();
 	void resizeImage();
 	void resetViewInfo();
+	void inflateSketch();
 	void analyzeSketch();
-	void optimizeSketch();
+	void normalizeSketch();
 	void setCameraUpward();
 
 	private:
 	QPen pen;
 	QPoint point;
+	QPen printer;
 	QPen marker;
 	QImage image;
 	void getPens();
@@ -41,6 +43,7 @@ class QCanvas : public QWidget
 	QPen groundPlane;
 	bool isMousePressed;
 	QColor color(int index);
+	void critical(QString op);
 	QVector<QColor> colors;
 	QBasicTimer basicTimer;
 	bool isCameraUpward=false;

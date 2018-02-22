@@ -11,42 +11,38 @@ using namespace stan::math;
 class QEnergy
 {
 	public:
-	enum 
-	{
-		VERTICAL,
-		PARALLEL, 
-		DISTANCE,
-		COPLANAR,
-		HORIZONTAL,
-		SAME_POINTS,
-		PERPENDICULAR,
-		CONTACT_POINTS, 
-		PARALLEL_PLANES,
-		SYMMETRIC, IDENTICAL
-	};
 	veci path;
 	int planeSize;
-	int sketchWidth;
-	int sketchHeight;
+	QVector<Vector3v> axis;
+	QVector<veci> axisIndices;
+	void save(QString fileName);
 	void initViewInfo();
 	veci samePoints;
-	VectorXi regularity;
-	VectorXi sketchVector;
+	veci regularity;
+	void analyze();
+	veci point3D;
+	veci getPoint2D();
+	QVector<vec4> getPlanes();
+	QViewer viewer;
+	VectorXd sketch;
 	var viewDistance=12;
+	var accuracy=5000;
 	vec4 ground=vec4(0, 1, 0, 0);
+	vec horizontal, forward;
 	Vector3v upward(const Vector4v& ground);
 	Vector2v pointAt(int index);
 	var QEnergy::weight(int type);
 	vec toQVector(VectorXd vector);
-	Vector3v up=Vector3v(0, 1, 0);
 	veci toQVector(VectorXi vector);
 	vec toQVector(VectorXv vector);
-	Vector3v right=Vector3v(1, 0, 0);
 	var decay(var distance, var speed);
-	void setupViewer(QViewer viewer);
-	Vector3v forward=Vector3v(0, 0, -1);
-	VectorXd planeVector, variableVector;
-	Vector3v lookAt(const Vector2v& point, const Vector4v& plane);
+	VectorXd variables;
+	bool isPlaneOnly=true;
+	bool isAddingAxis=false;
+	Vector4v groundPlane();
+	void getAxis(const VectorXv& variables);
+	VectorXd toVectorXd(vec vector);
+	vec2 sketchPixel(int x, int y, QViewer viewer);
 	var depthEnergy(const VectorXv& planes);
 	var totalEnergy(const VectorXv& variables);
 	void copySameGradients(VectorXd& grad);
@@ -54,27 +50,33 @@ class QEnergy
 	QVector2D toQVector2D(Vector2v vector2v);
 	QVector3D toQVector3D(Vector3v vector3v);
 	QVector4D toQVector4D(Vector4v vector4v);
-	MatrixXv sketchCurves(VectorXd& variables);
-	MatrixXd sketchPlanes(VectorXd& variables);
+	Vector4v toVector4v(vec4 vector4D);
+	QVector<QVector3D> toVector3D(QVector<Vector3v> vector3v);
+	QVector<Vector3v> toVector3v(QVector<QVector3D> vector3D);
+	var horizontalEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane);
+	var forwardEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane);
+	Vector3v getLineDirection(const VectorXv& variables, int startIndex, int endIndex, int planeIndex);
+	MatrixXv getSketchPoints(const VectorXd& variables);
 	var accuracyEnergy(const VectorXv& variables);
 	Vector4v getGroundPlane(const VectorXd& variables);
-	MatrixXv getSketchPoints(const VectorXd& variable);
 	var foreshorteningEnergy(const VectorXv& variables);
 	Vector2v pointAt(const VectorXv& variable, int index);
 	QVector<double> viewInfoVector=QVector<double>(12);
 	var cosAngle(const VectorXv& variables, int i0, int i1, int i2);
+	VectorXv toVectorXv(const VectorXd& vectorXd);
 	Vector2v toVector2v(const VectorXd& vectorXd, int startIndex);
 	Vector4v toVector4v(const VectorXd& vectorXd, int startIndex);
-	var  aspectRatio=1.0, screenScale=100.0, focalLength=0.1;
 	Vector3v sketchPoint(const VectorXv& variables, int sketchIndex);
-	Vector3v sketchPoint(const Vector2i& point, const Vector4v& plane);
+	Vector3v sketchPoint(const Vector2d& point, const Vector4v& plane);
 	Vector3v sketchPoint(const Vector2v& point, const Vector4v& plane);
 	var stdDevAnglesEnergy(const VectorXv& variables, int start, int end);
 	var parallelEnergy(const Vector4v& plane1, const Vector4v& plane2);
-	QEnergy(veci path, veci sketch, int planesSize, veci regularity, QViewer viewer);
+	void addAxis(int axisIndex, int startIndex, int endIndex, int planeIndex);
+	Vector3v addLineDirection(Vector3v dir1, Vector3v dir2);
 	var collinearEnergy(const MatrixXv& curve, const Vector4v& plane, int start, int end);
+	var verticalEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane);
 	var totalEnergy(const VectorXi& sketch, const VectorXi& joint, const VectorXv& plane, int planeSize);
-	var verticalEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane, const Vector4v& ground);
+	QEnergy(veci path, veci sketch, int planeSize, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
 	var distanceEnergy(const Vector2v& point1, const Vector4v& plane1, const Vector2v& point2, const Vector4v& plane2);
 	var coplanarEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& srcPlane, const Vector4v& destPlane);
 	var perpendicularEnergy(const Vector2v& leftPoint, const Vector2v& midPoint, const Vector2v& rightPoint, const Vector4v& plane);

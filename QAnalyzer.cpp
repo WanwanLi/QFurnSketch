@@ -3,14 +3,16 @@
 #define LINE sketch->LINE
 #define MOVE sketch->MOVE
 #define CUBIC sketch->CUBIC
-#define INITIAL sketch->INITIAL
+#define INITIAL sketch->INITIALIZED
 #define dot(x, y) vec3::dotProduct(x, y)
 
 QString QAnalyzer::toString(int value)
 {
-	if(value==VERTICAL)return "VER";
+	if(value==AXIS)return "AXIS";
+	else if(value==VERTICAL)return "VER";
 	else if(value==DISTANCE)return "DIS";
 	else if(value==PARALLEL)return "PAR";
+	else if(value==FORWARD)return "FOR";
 	else if(value==COPLANAR)return "COP";
 	else if(value==HORIZONTAL)return "HOR";
 	else if(value==SAME_POINTS)return "SAME";
@@ -23,9 +25,11 @@ QString QAnalyzer::toString(int value)
 }
 int QAnalyzer::toValue(QString string)
 {
-	if(string=="VER")return VERTICAL;
+	if(string=="AXIS")return AXIS;
+	else if(string=="VER")return VERTICAL;
 	else if(string=="DIS")return DISTANCE;
 	else if(string=="PAR")return PARALLEL;
+	else if(string=="FOR")return FORWARD;
 	else if(string=="COP")return COPLANAR;
 	else if(string=="HOR")return HORIZONTAL;
 	else if(string=="SAME")return SAME_POINTS;
@@ -40,10 +44,13 @@ int QAnalyzer::count(int value)
 {
 	switch(value)
 	{
+		case AXIS: return 4;
 		case VERTICAL: return 3;
 		case DISTANCE: return 4;
+		case FORWARD: return 3;
 		case PARALLEL: return 6;
 		case COPLANAR: return 4;
+		case HORIZONTAL: return 3;
 		case SAME_POINTS: return 2;
 		case PERPENDICULAR: return 4;
 		case CONTACT_POINTS: return 3;
@@ -51,9 +58,38 @@ int QAnalyzer::count(int value)
 	}
 	return 0;
 }
+int QAnalyzer::toAxis(QString axis)
+{
+	return axis=="x"?0:(axis=="y"?1:2);
+}
+void QAnalyzer::initAxis()
+{
+	for(int i=0; i<3; i++)this->axis<<vec3(0, 0, 0);
+}
 void QAnalyzer::operator<<(QStringList& list)
 {
 	if(list[0]=="PLANES")this->planesSize=list[1].toInt();
+	else if(list[0]=="p")
+	{
+		vec4 plane
+		(
+			list[1].toDouble(), list[2].toDouble(),
+			list[3].toDouble(), list[4].toDouble()
+		);
+		this->planes<<plane;
+	}
+	else if(list[0]=="x"||list[0]=="y"||list[0]=="z")
+	{
+		if(!axis.size())
+		this->initAxis();
+		vec3 vector
+		(
+			list[1].toDouble(), 
+			list[2].toDouble(), 
+			list[3].toDouble()
+		);
+		this->axis[toAxis(list[0])]=vector;
+	}
 	else 
 	{
 		int value=toValue(list[0]); if(value<0)return;
@@ -170,6 +206,15 @@ void QAnalyzer::initializeSketchCurves()
 	#undef viewer
 	#undef point2D
 }
+void QAnalyzer::analyze(veci path, veci point2D, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer)
+{
+	QSketch* sketch=new QSketch(path, point2D, viewer);
+	this->load(sketch);
+	this->planes=planes;
+	this->axis=axis;
+	this->initializeSketchCurves();
+	this->regularity=regularity;
+}
 void QAnalyzer::run()
 {
 	this->regularity.clear();
@@ -190,18 +235,24 @@ void QAnalyzer::run()
 void QAnalyzer::update()
 {
 	veci regularity;
+	for(int i=0; i<3&&i<parallelLines.size(); i++)
+	{
+		for(int j=0; j<parallelLines[i].size(); j++)
+		{
+			vec4 line=parallelLines[i][j];
+			int c=line.x(), k1=line.y(), k2=line.z(), planeIndex=line.w();
+			regularity<<AXIS<<i<<indexOf(c, k1)<<indexOf(c, k2)<<planeIndex;
+		}
+	}
 	for(int i=0; i<parallelLines.size(); i++)
 	{
-		for(int j=0; j<parallelLines[i].size()-1; j++)
+		for(int j=0, k=1; j<parallelLines[i].size()-1; j++, k++)
 		{
-			for(int k=j+1; k<parallelLines[i].size(); k++)
-			{
-				vec4 line1=parallelLines[i][j], line2=parallelLines[i][k];
-				int c1=line1.x(), k1=line1.y(), k2=line1.z(), planeIndex1=line1.w();
-				int c2=line2.x(), k3=line2.y(), k4=line2.z(), planeIndex2=line2.w(); 
-				regularity<<PARALLEL<<indexOf(c1, k1)<<indexOf(c1, k2)<<planeIndex1;
-				regularity<<indexOf(c2, k3)<<indexOf(c2, k4)<<planeIndex2;
-			}
+			vec4 line1=parallelLines[i][j], line2=parallelLines[i][k];
+			int c1=line1.x(), k1=line1.y(), k2=line1.z(), planeIndex1=line1.w();
+			int c2=line2.x(), k3=line2.y(), k4=line2.z(), planeIndex2=line2.w(); 
+			regularity<<PARALLEL<<indexOf(c1, k1)<<indexOf(c1, k2)<<planeIndex1;
+			regularity<<indexOf(c2, k3)<<indexOf(c2, k4)<<planeIndex2;
 		}
 	}
 	#define R this->regularity
@@ -701,13 +752,32 @@ void QAnalyzer::save(QString fileName)
 		}
 	}
 	#undef planes
-	textStream<<"PLANES "<<planesSize+1<<endl;
+	if(!planes.size())textStream<<"PLANES "<<planesSize+1<<endl;
 	for(int i=0; i<regularity.size(); i++)
 	{
-		textStream<<toString(regularity[i]); int n=count(regularity[i]);
+		textStream<<QAnalyzer::toString(regularity[i]); 
+		int n=QAnalyzer::count(regularity[i]);
 		for(int t=0; t<n; t++)textStream<<" "<<regularity[++i];
 		textStream<<endl;
 	}
+	for(vec4 p : planes)
+	{
+		textStream<<"p "<<p.x()<<" "<<p.y()<<" "<<p.z()<<" "<<p.w()<<endl;
+	}
+	if(axis.size()==3)
+	{
+		this->axis=axis;
+		QVector<QString> xyz; 
+		xyz<<"x "<<"y "<<"z ";
+		for(int i=0; i<3; i++)
+		{
+			textStream<<xyz[i]<<axis[i].x()<<" "<<axis[i].y()<<" "<<axis[i].z()<<endl;
+		}
+	}
+}
+void QAnalyzer::save(QTextStream& textStream, veci regularity)
+{
+
 }
 void insert(QVector<QVector<vec2>>& pointsCluster, vec2 startPoint, vec2 endPoint)
 {
@@ -793,6 +863,7 @@ void QAnalyzer::drawRegularity(QPainter& painter)
 				painter.drawText(QPointF((int)p1.x(), (int)p1.y()+dy), "_|_"); 
 				painter.drawText(QPointF((int)p2.x(), (int)p2.y()+dy), "_|_"); break;
 			}
+			case AXIS: i+=3; break;
 			case PARALLEL_PLANES: i+=2; break;
 			case DISTANCE: i+=4; break;
 			case COPLANAR: i+=4; break;

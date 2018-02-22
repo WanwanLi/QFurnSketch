@@ -25,6 +25,7 @@ Template(T) class QStanMath
 	static Vector4t createPlane(const Vector3t& point, const Vector3t& normal);
 	static Vector3t projectedPoint(const Vector3t& point, const Vector4t& plane);
 	static MatrixXt projectedCurve(const MatrixXt& curve, const Vector4t& plane);
+	static T distanceBetweenDirections(const Vector3t& dir1, const Vector3t& dir2);
 	static Vector3t intersectPlane(const Vector3t& origin, const Vector3t& direction, const Vector4t& plane);
 	static T cosAngle(const Vector3t& begin1, const Vector3t& end1, const Vector3t& begin2, const Vector3t& end2);
 	static T integrateDistanceSquare(const Vector3t& P0, const Vector3t& P1, const Vector3t& Q0, const Vector3t& Q1);
@@ -33,6 +34,10 @@ Template(T) Vector3t QStanMath<T>::getNormal(const Vector4t& plane)
 {
 	Vector3t normal=plane.head(3);
 	return normal/normal.norm();
+}
+Template(T) T QStanMath<T>::distanceBetweenDirections(const Vector3t& dir1, const Vector3t& dir2)
+{
+	var dot=dir1.normalized().dot(dir2.normalized()); return 1-dot*dot;
 }
 Template(T) T QStanMath<T>::cosAngle(const Vector3t& begin1, const Vector3t& end1, const Vector3t& begin2, const Vector3t& end2)
 {

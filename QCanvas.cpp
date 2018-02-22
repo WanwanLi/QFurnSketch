@@ -28,6 +28,7 @@ void QCanvas::getPens()
 {
 	this->pen=QPen(Qt::blue, 10, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 	this->marker=QPen(Qt::red, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
+	this->printer=QPen(Qt::black, 3, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 	this->progressBar=QPen(Qt::green, 10, Qt::SolidLine, Qt::FlatCap, Qt::MiterJoin);
 	this->groundPlane=QPen(Qt::cyan, 2, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin);
 }
@@ -82,29 +83,31 @@ void QCanvas::clear()
 	this->clearImage();
 	this->isUpdated=true;
 }
+void QCanvas::critical(QString op)
+{
+	QMessageBox::critical
+	(
+		this, "IIlegal State Exception",
+		"Can not "+op+" Sketch."
+	);
+}
 void QCanvas::analyzeSketch()
 {
-	if(!sketch.analyze())
-	{
-		QMessageBox::critical
-		(
-			this, "IIlegal State Exception", 
-			"Can not Analyze Sketch."
-		); 
-	}
+	if(sketch.analyze())
 	this->isUpdated=true;
+	else critical("Analyze");
 }
-void QCanvas::optimizeSketch()
+void QCanvas::inflateSketch()
 {
-	if(!sketch.optimize())
-	{
-		QMessageBox::critical
-		(
-			this, "IIlegal State Exception", 
-			"Can not Optimize Sketch."
-		); 
-	}
+	if(sketch.inflate())
 	this->isUpdated=true;
+	else critical("Inflate");
+}
+void QCanvas::normalizeSketch()
+{
+	if(sketch.normalize())
+	this->isUpdated=true;
+	else critical("Normalize");
 }
 void QCanvas::clearImage()
 {
@@ -120,7 +123,7 @@ void QCanvas::paintEvent(QPaintEvent* event)
 }
 void QCanvas::mouseMoveEvent(QMouseEvent* event)
 {
-	if(!sketch.is(sketch.OPTIMIZED))return;
+	if(!sketch.isOptimizing())return;
 	if(isMousePressed)
 	{
 		this->mouseMove=event->pos()-mousePos;
@@ -131,7 +134,7 @@ void QCanvas::mouseMoveEvent(QMouseEvent* event)
 }
 void QCanvas::mousePressEvent(QMouseEvent* event)
 {
-	if(!sketch.is(sketch.OPTIMIZED))return;
+	if(!sketch.isOptimizing())return;
 	if(event->button()==Qt::LeftButton) 
 	{
 		this->isUpdated=true;
@@ -145,14 +148,14 @@ void QCanvas::mouseReleaseEvent(QMouseEvent* event)
 }
 void QCanvas::wheelEvent(QWheelEvent* event)
 {
-	if(!sketch.is(sketch.OPTIMIZED))return;
+	if(!sketch.isOptimizing())return;
 	qreal delta=-event->delta()/120.0;
 	this->sketch.viewer.translate(delta);
 	this->isUpdated=true;
 }
 void QCanvas::timerEvent(QTimerEvent* event)
 {
-	if(sketch.thread->isRunning())
+	if(sketch.isOnUpdated())
 	this->isUpdated=true;
 	if(!isUpdated)return;
 	this->image.fill(bgColor);
@@ -172,10 +175,14 @@ void QCanvas::drawSketch()
 	}
 	painter.setPen(marker);
 	sketch.drawMarkers(painter);
+	sketch.drawRegularity3D(painter);
+	painter.setPen(printer);
+	sketch.drawStatusText(painter);
 	painter.setPen(progressBar);
 	sketch.drawProgressBar(painter);
 	painter.setPen(groundPlane);
 	sketch.drawGroundPlane(painter);
+	sketch.drawAxis(painter);
 }
 QColor QCanvas::color(int index)
 {

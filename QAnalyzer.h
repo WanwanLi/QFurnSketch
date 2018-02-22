@@ -1,4 +1,4 @@
-#include "QDefine.h"
+#include "QViewer.h"
 #include <QPainter>
 
 class QSketch;
@@ -7,27 +7,33 @@ class QAnalyzer
 	public:
 	static enum 
 	{
+		AXIS,
 		VERTICAL,
 		PARALLEL, 
 		DISTANCE,
+		FORWARD,
 		COPLANAR,
 		HORIZONTAL,
 		SAME_POINTS,
+		LONGITUDINAL,
 		PERPENDICULAR,
 		CONTACT_POINTS, 
 		PARALLEL_PLANES,
 		SYMMETRIC, IDENTICAL, 
 	};
+	void initAxis();
 	int planesSize;
 	QSketch* sketch;
+	QVector<vec3> axis;
 	QVector<bool> isJoint;
+	int toAxis(QString axis);
+	QVector<vec4> planes;
 	static int count(int value);
 	int toValue(QString string);
 	void  run(), update(), clear();
 	void load(QSketch* sketch);
 	void save(QString fileName);
 	static QString toString(int value);
-	QString fileName="QAnalysis.sky";
 	QVector<vec2> avgLineDirections;
 	void drawMarkers(QPainter& painter);
 	void drawRegularity(QPainter& painter);
@@ -35,6 +41,8 @@ class QAnalyzer
 	void operator<<(QStringList& stringList);
 	QVector<veci> sketchCurves, sketchPaths;
 	veci regularity, markerLines, markerPoints, startPoints;
+	static void save(QTextStream& textStream, veci regularity);
+	void analyze(veci path, veci point2D, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
 
 	private:
 	vec2 yAxis=vec2(0, 1);

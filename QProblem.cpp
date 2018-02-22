@@ -5,7 +5,7 @@
 QProblem::QProblem(QEnergy* energy)
 {
 	this->energy=energy;
-	this->getValue(energy->variableVector);
+	this->getValue(energy->variables);
 }
 void QProblem::getValue(const VectorXd& variable)
 {

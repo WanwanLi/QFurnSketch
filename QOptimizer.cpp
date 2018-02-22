@@ -5,6 +5,7 @@
 #include "QOptimizer.h"
 #include <QTextStream>
 
+QString QOptimizer::fileName="QOptimizer.";
 QOptimizer::QOptimizer(QThread* thread)
 {
 	this->moveToThread(thread);
@@ -22,20 +23,25 @@ void writeVector3v(QTextStream& textStream, Vector3v vector)
 	textStream<<num(vector[1].val())<<"\n";
 	textStream<<num(vector[2].val())<<"\n";
 }
+void writeVectorXv(QTextStream& textStream, VectorXv vector)
+{
+	for(int i=0; i<vector.size(); i++)textStream<<num(vector(i).val())<<"\n";
+}
 void QOptimizer::emitValueChanged(int value, const VectorXd& variable)
 {
 	#define path energy->path
 	QFile file(fileName+num(value));
 	if(!file.open(QIODevice::WriteOnly))return;
-	#define planeIndex(i) energy->sketchVector(i*3+2)
+	#define planeIndex(i) energy->sketch(i*3+2)
 	MatrixXv points=energy->getSketchPoints(variable);
+	VectorXv variables=energy->toVectorXv(variable);
+	energy->getAxis(variables);
 	QTextStream textStream(&file);
 	textStream<<num(energy->planeSize)<<"\n";
-	Vector4v groundPlane=energy->getGroundPlane(variable);
-	textStream<<num(groundPlane(0).val())<<"\n";
-	textStream<<num(groundPlane(1).val())<<"\n";
-	textStream<<num(groundPlane(2).val())<<"\n";
-	textStream<<num(groundPlane(3).val())<<"\n";
+	writeVectorXv(textStream, energy->getGroundPlane(variable));
+	writeVectorXv(textStream, energy->axis[0]);
+	writeVectorXv(textStream, energy->axis[1]);
+	writeVectorXv(textStream, energy->axis[2]);
 	for(int i=0, j=0; i<path.size(); i++)
 	{
 		#define S QSketch
@@ -56,7 +62,7 @@ void QOptimizer::emitValueChanged(int value, const VectorXd& variable)
 		#undef S
 	}
 	file.close(); emit setValue(value);
-	#define planeIndex(i)
+	#undef planeIndex
 	#undef path 
 }
 ISolver<QProblem, 1>  QOptimizer::QSolver()
@@ -78,13 +84,19 @@ ISolver<QProblem, 1>  QOptimizer::QSolver()
 }
 void QOptimizer::start()
 {
-	QSketch sketch;
-	if(!sketch.load()){emit finished(); return;}
+	QSketch sketch(sketchFile);
+	if(!sketch.isValid)
+	{
+		this->energy=NULL;
+		emit finished(); return;
+	}
 	this->energy=new QEnergy
 	(
 		sketch.path, sketch.point3D,
 		sketch.analyzer.planesSize,
 		sketch.analyzer.regularity,
+		sketch.analyzer.planes,
+		sketch.analyzer.axis,
 		sketch.viewer
 	);
 	QProblem f(energy);
@@ -93,19 +105,34 @@ void QOptimizer::start()
 		&f, &QProblem::valueChanged, 
 		this, &QOptimizer::valueChanged
 	);
-	VectorXd x=energy->variableVector;
+	VectorXd x=energy->variables;
 	Criteria<double> criteria=Criteria<double>::defaults();
 	criteria.iterations=iterations;
 	GradientDescentSolver<QProblem> solver;
 	solver.setStopCriteria(criteria);
 	solver.minimize(f, x);
+	energy->variables=x;
 	emit finished();
 }
 void QOptimizer::valueChanged(int iterations, const VectorXd& variable)
 {
 	emitValueChanged(iterations, variable);
 }
+void QOptimizer::save(QString fileName, QVector<qreal> vector)
+{
+	QFile file(fileName);
+	if(!file.open(QIODevice::WriteOnly))return;
+	QTextStream textStream(&file);
+	textStream<<num(vector.size())<<"\n";
+	for(qreal x : vector)textStream<<num(x)<<"\n";
+	file.close(); 
+}
 void QOptimizer::quit()
 {
-	emit setValue(0);
+	if(energy&&energy->isPlaneOnly)
+	{
+		this->energy->save(QSketch::sketch3DFile);
+		this->save("horizontal", energy->horizontal);
+		this->save("forward", energy->forward);
+	}
 }
