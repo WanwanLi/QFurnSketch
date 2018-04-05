@@ -110,3 +110,19 @@ vec3* QViewer::getTNBSpace(const vec4& plane)
 	vec3 bitangent=cross(normal, tangent).normalized();
 	return new vec3[3]{tangent, normal, bitangent};
 }
+vec2 QViewer::sketchPixel(int x, int y)
+{
+	return vec2
+	(
+		 (x-width/2+0.0)/(width/2),
+		-(y-height/2+0.0)/(height/2)/aspectRatio
+	);
+}
+vec2 QViewer::canvasPixel(vec2 point)
+{
+	return vec2
+	(
+		point.x()*(width/2)+width/2,
+		-point.y()*(height/2)*aspectRatio+height/2
+	);
+}

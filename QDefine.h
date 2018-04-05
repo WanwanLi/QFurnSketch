@@ -9,5 +9,6 @@
 	typedef QVector4D vec4;
 	typedef QVector<int> veci;
 	typedef QVector<qreal> vec;
+	typedef QVector<bool> vecb;
 	#define num(x) QString::number(x)
 #endif

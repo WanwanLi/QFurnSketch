@@ -90,6 +90,7 @@ void QOptimizer::start()
 		this->energy=NULL;
 		emit finished(); return;
 	}
+	sketch.antialias();
 	this->energy=new QEnergy
 	(
 		sketch.path, sketch.point3D,
@@ -129,10 +130,12 @@ void QOptimizer::save(QString fileName, QVector<qreal> vector)
 }
 void QOptimizer::quit()
 {
-	if(energy&&energy->isPlaneOnly)
+	if(!energy)return;
+	if(energy->isPlaneOnly)
 	{
 		this->energy->save(QSketch::sketch3DFile);
 		this->save("horizontal", energy->horizontal);
 		this->save("forward", energy->forward);
 	}
+	else this->energy->save(QSketch::sketchModelFile);
 }

@@ -2,9 +2,12 @@
 #include<QDebug>
 #include "QSketch.h"
 #include "QOptimizer.h"
+#include "QStanMath.h"
 
+#define QDoubleMath QStanMath<double>
 QString QSketch::sketch2DFile="QSketch2D.sky";
 QString QSketch::sketch3DFile="QSketch3D.sky";
+QString QSketch::sketchModelFile="QSketchModel.sky";
 
 QSketch::QSketch()
 {
@@ -182,12 +185,13 @@ void QSketch::finished()
 {
 	this->iterations=0;
 	this->isUpdated=true;
+	if(is(NORMALIZED))
 	this->displayGroundPlane=true;
 	if(!displayRegularity3D)
 	{
 		this->horizontal=open("horizontal");
 		this->forward=open("forward");
-		this->displayRegularity3D=true;
+	//	this->displayRegularity3D=true;
 	}
 }
 QSketch::QSketch(QString fileName)
@@ -334,6 +338,116 @@ bool QSketch::normalize()
 	this->forward.clear();
 	this->displayRegularity3D=false;
 	return true;
+}
+QVector<vec3*> QSketch::getPoint4D()
+{
+	QVector<vec3*> quads; Vector3d space(5, 5, 5);
+	for(int i=0; i<analyzer.planes.size()-1; i++)
+	{
+		Vector3d* quad3d=QDoubleMath::getQuad
+		(
+			QDoubleMath::toVector4t(analyzer.planes[i]), space
+		);
+		vec3* quad3D=new vec3[4]; for(int j=0; j<4; j++)
+		quad3D[j]=QDoubleMath::toVector3D(quad3d[j]); quads<<quad3D;
+	}
+	for(int i=0; i<point3D.size(); i+=3)
+	{
+		vec2 sketchPixel=viewer.sketchPixel(point3D[i+0], point3D[i+1]);
+		vec4 plane=analyzer.planes[point3D[i+2]];
+		Vector3d sketchPoint=QDoubleMath::sketchPoint
+		(
+			QDoubleMath::toVector2t(sketchPixel), QDoubleMath::toVector4t(plane)
+		);
+		this->point4D<<sketchPoint(0)<<sketchPoint(1)<<sketchPoint(2)<<point3D[i+2];
+	}
+	return quads;
+}
+void insertPlanePoints(QVector<QVector<Vector3d>>& planePoints, Vector3d point, int planeIndex)
+{
+	int i=planeIndex; double error=0.001;
+	if(planePoints[i].size()>=3)return;
+	if(planePoints[i].size()==2)
+	{
+		Vector3d p0=planePoints[i][0], p1=planePoints[i][1], p2=point;
+		Vector3d d0=(p1-p0).normalized(), d1=(p1-p2).normalized();
+		if(QDoubleMath::distanceBetweenDirections(d0, d1)>error)planePoints[i]<<p2;
+	}
+	else planePoints[i]<<point;
+}
+vec3 QSketch::getPoint3D(int index)
+{
+	vec2 sketchPixel=viewer.sketchPixel
+	(
+				point3D[index+0], point3D[index+1]
+	);
+	vec4 plane=analyzer.planes[point3D[index+2]];
+	return QDoubleMath::toVector3D
+	(
+				QDoubleMath::sketchPoint
+				(
+					QDoubleMath::toVector2t(sketchPixel),
+					QDoubleMath::toVector4t(plane)
+				)
+	);
+}
+void QSketch::conncetJointToPlane()
+{
+	qDebug()<<analyzer.joints<<analyzer.samePoints;
+	for(int i=0; i<analyzer.joints.size(); i+=3)
+	{
+		int c0=analyzer.joints[i+0], c1=analyzer.joints[i+1], p=analyzer.joints[i+2];
+		Vector3d p0=QDoubleMath::toVector3t(getPoint3D(c0*3));
+		Vector3d p1=QDoubleMath::toVector3t(getPoint3D(c1*3));
+		Vector4d plane=QDoubleMath::toVector4t(analyzer.planes[p]);
+		Vector3d sketchPoint=QDoubleMath::intersectPlane(p1, p0-p1, plane);
+		Vector2d canvasPoint=QDoubleMath::canvasPoint(sketchPoint);
+		this->setPoint3D(c0*3, viewer.canvasPixel(QDoubleMath::toVector2D(canvasPoint)));
+	}
+	for(int i=0; i<analyzer.samePoints.size(); i+=2)
+	{
+		int c0=analyzer.samePoints[i+0];
+		int c1=analyzer.samePoints[i+1];
+		int x=point3D[c0*3+0];
+		int y=point3D[c0*3+1];
+		this->setPoint3D(c1*3, vec2(x, y));
+	}
+}
+void QSketch::antialias()
+{
+	if(!analyzer.planes.size())return; 
+	vec4 ground=analyzer.planes[analyzer.planes.size()-1];
+	Vector4d groundPlane=QDoubleMath::toVector4t(ground);
+	Vector3d yAxis=QDoubleMath::toVector3t(analyzer.axis[1]);
+	QVector<QVector<Vector3d>> planePoints;
+	for(int i=0; i<analyzer.planes.size()-1; i++)
+	planePoints<<QVector<Vector3d>();
+	for(int i=0; i<point3D.size(); i+=3)
+	{
+		vec2 sketchPixel=viewer.sketchPixel(point3D[i+0], point3D[i+1]);
+		vec4 plane=analyzer.planes[point3D[i+2]];
+		Vector3d sketchPoint=QDoubleMath::sketchPoint
+		(
+			QDoubleMath::toVector2t(sketchPixel), QDoubleMath::toVector4t(plane)
+		);
+		sketchPoint=QDoubleMath::antialiasPoint(sketchPoint, yAxis, groundPlane);
+		insertPlanePoints(planePoints, sketchPoint, point3D[i+2]);
+		Vector2d canvasPoint=QDoubleMath::canvasPoint(sketchPoint);
+		this->setPoint3D(i, viewer.canvasPixel(QDoubleMath::toVector2D(canvasPoint)));
+	}
+	for(int i=0; i<analyzer.planes.size()-1; i++)
+	{
+		this->analyzer.planes[i]=QDoubleMath::toVector4D
+		(
+			QDoubleMath::createPlane(planePoints[i])
+		);
+	}
+	this->conncetJointToPlane();
+}
+void QSketch::setPoint3D(int startIndex, vec2 point)
+{
+	this->point3D[startIndex+0]=point.x();
+	this->point3D[startIndex+1]=point.y();
 }
 void QSketch::paint()
 {

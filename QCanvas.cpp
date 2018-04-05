@@ -1,6 +1,8 @@
+#include "QMesh.h"
 #include <QPainter>
 #include "QCanvas.h"
 #include <QMessageBox>
+#include "QOpenGLWindow.h"
 #define RGB32 QImage::Format_RGB32
 
 QCanvas::QCanvas(QWidget* widget) : QWidget(widget)
@@ -62,9 +64,17 @@ void QCanvas::resizeWindow(int margin)
 {
 	this->widget->resize(QSize(image.width(), image.height()+margin));
 }
+void QCanvas::visualize()
+{
+	QSketch sketch(QSketch::sketchModelFile); if(!sketch.isValid)return;
+	QVector<vec3*> quads=sketch.getPoint4D();
+	QMesh mesh(sketch.path, sketch.point4D, quads);
+	QOpenGLWindow* window=new QOpenGLWindow(colors, mesh.quads, mesh.coords);
+	window->resize(400, 300); window->show();
+}
 void QCanvas::resizeImage()
 {
-	QImage image=QImage(size(), RGB32);
+	QImage image(size(), RGB32);
 	QPainter painter(&image);
 	painter.drawImage
 	(
@@ -172,6 +182,8 @@ void QCanvas::drawSketch()
 		pen.setColor(color(i));
 		painter.setPen(pen);
 		painter.drawPath(sketch[i]);
+		if(sketch.is(sketch.NORMALIZED))
+		painter.fillPath(sketch[i], brush(i));
 	}
 	painter.setPen(marker);
 	sketch.drawMarkers(painter);
@@ -187,6 +199,14 @@ void QCanvas::drawSketch()
 QColor QCanvas::color(int index)
 {
 	return this->colors[index%(colors.size()-1)];
+}
+QBrush QCanvas::brush(int index)
+{
+	QColor color=this->colors[index%(colors.size()-1)];
+	qreal red=qMin(color.redF()+0.25, 1.0);
+	qreal green=qMin(color.greenF()+0.25, 1.0);
+	qreal blue=qMin(color.blueF()+0.25, 1.0);
+	return QBrush(QColor::fromRgbF(red, green, blue, 0.25f));
 }
 bool QCanvas::isModified()
 {

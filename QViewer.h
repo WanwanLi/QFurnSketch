@@ -15,6 +15,8 @@ class QViewer
 	vec3 yAxis=vec3(0, 1, 0);
 	vec3 zAxis=vec3(0, 0, 1);
 	void rotate(QPoint rotation);
+	vec2 sketchPixel(int x, int y);
+	vec2 canvasPixel(vec2 point);
 	void translate(qreal translation);
 	vec3 centerPoint(const vec4& plane);
 	QPoint lookAt(qreal x, qreal y, qreal z);

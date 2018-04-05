@@ -18,6 +18,7 @@ class QCanvas : public QWidget
 
 	public slots:
 	void clear();
+	void visualize();
 	bool isModified();
 	void resizeImage();
 	void resetViewInfo();
@@ -46,6 +47,7 @@ class QCanvas : public QWidget
 	void critical(QString op);
 	QVector<QColor> colors;
 	QBasicTimer basicTimer;
+	QBrush brush(int index);
 	bool isCameraUpward=false;
 	void resizeWindow(int margin);
 	QPoint mouseMove, mousePos;

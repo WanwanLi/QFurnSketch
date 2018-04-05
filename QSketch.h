@@ -23,6 +23,7 @@ class QSketch : public QObject
 	bool isValid;
 	bool inflate();
 	bool analyze();
+	void antialias();
 	bool normalize();
 	int iterations=0;
 	QViewer viewer;
@@ -32,41 +33,44 @@ class QSketch : public QObject
 	QAnalyzer analyzer;
 	void paint(), update();
 	int state=INITIALIZED;
-
 	vec horizontal, forward;
 	int getOptimizingState();
 	QSketch(QString fileName);
 	vec open(QString fileName);
 	bool load(QString fileName);
 	bool save(QString fileName);
+	QVector<vec3*> getPoint4D();
 	QThread *inflator, *normalizer;
 	bool displayRegularity3D=false;
 	bool displayGroundPlane=false;
 	QPainterPath& operator[](int i);
 	static enum {MOVE, LINE, CUBIC};
+	void drawAxis(QPainter& painter);
 	veci point2D, point3D; vec point4D;
 	void drawMarkers(QPainter& painter);
 	QOptimizer *optimizer2D, *optimizer3D;
 	void drawStatusText(QPainter& painter);
 	void drawProgressBar(QPainter& painter);
 	void drawGroundPlane(QPainter& painter);
-	static QString sketch2DFile, sketch3DFile;
 	void drawRegularity3D(QPainter& painter);
-	void drawAxis(QPainter& painter);
 	QSketch(veci path, veci point2D, QViewer viewer);
 	enum{INITIALIZED, ANALYZED, INFLATED, NORMALIZED};
+	static QString sketch2DFile, sketch3DFile, sketchModelFile;
 
 	private:
 	vec4 groundPlane;
 	bool isUpdated=false;
 	vec3 xAxis, yAxis, zAxis;
 	QOptimizer* optimizer();
+	vec3 getPoint3D(int index);
 	void updatePainterPaths();
 	bool load(QStringList& list);
+	void conncetJointToPlane();
 	vec3 planeCenter=vec3(0, -0.25, 0);
 	QVector<QPainterPath> painterPaths;
 	int planeGrids=20; qreal planeSize=20;
 	bool load(QStringList& list, bool isPoint3D);
+	void setPoint3D(int startIndex, vec2 point);
 	void drawLine(QPainter& painter, vec3 v0, vec3 v1);
 	bool load(QTextStream& textStream, bool isPoint3D);
 	void moveTo(int x, int y, int index), lineTo(int x, int y, int index);

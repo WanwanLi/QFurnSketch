@@ -8,6 +8,7 @@ class QAnalyzer
 	static enum 
 	{
 		AXIS,
+		JOINT,
 		VERTICAL,
 		PARALLEL, 
 		DISTANCE,
@@ -19,6 +20,7 @@ class QAnalyzer
 		PERPENDICULAR,
 		CONTACT_POINTS, 
 		PARALLEL_PLANES,
+		GROUND_POINTS,
 		SYMMETRIC, IDENTICAL, 
 	};
 	void initAxis();
@@ -29,6 +31,7 @@ class QAnalyzer
 	int toAxis(QString axis);
 	QVector<vec4> planes;
 	static int count(int value);
+	QVector<vecb> jointGraph;
 	int toValue(QString string);
 	void  run(), update(), clear();
 	void load(QSketch* sketch);
@@ -40,14 +43,17 @@ class QAnalyzer
 	QVector<QVector<vec4>> parallelLines;
 	void operator<<(QStringList& stringList);
 	QVector<veci> sketchCurves, sketchPaths;
-	veci regularity, markerLines, markerPoints, startPoints;
 	static void save(QTextStream& textStream, veci regularity);
+	veci regularity, joints, samePoints, markerLines, markerPoints, startPoints;
 	void analyze(veci path, veci point2D, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
 
 	private:
 	vec2 yAxis=vec2(0, 1);
+	veci getSketchPointY();
+	void getContactPoints();
 	vec2 getPoint(int index);
 	bool hasJointMarker=true;
+	void initializeJointGraph();
 	void initializeSketchCurves();
 	void completeSketchCurves();
 	vec2 firstPoint(int curveIndex);
@@ -59,24 +65,35 @@ class QAnalyzer
 	veci contactPoints, sketchPlanes;
 	qreal error=0.05, minDistance=5.0;
 	bool isParallel(int index, vec4 line2);
-	void getContactPoints(int curveIndex);
 	bool isJointType(const vec& positions);
+	void completeOpenCurve(int curveIndex);
 	void updateAvgLineDirections(int index);
 	void getCurvesRegularity(int curveIndex);
 	bool hasCloseCurveCtrlPointsMarker=true;
 	int indexOf(int curveIndex, int pointIndex);
 	int getIndex(int curveIndex, int pointIndex);
-	vec2 addLineDirection(vec2 dir1, vec2 dir2);
 	veci sketchTypes, sketchSizes, sketchVector;
+	vec2 addLineDirection(vec2 dir1, vec2 dir2);
 	vec2 getPoint(int curveIndex, int pointIndex);
+	void setLastPoint(int curveIndex, vec2 point);
+	void setFirstPoint(int curveIndex, vec2 point);
 	bool isParallel(const vec2& x, const vec2& y);
 	void addParallelLines(vec4 line1, vec4 line2);
 	bool isJointType(int curveIndex, int& planeIndex);
-	void completeOpenCurveWithJoint(int curveIndex);
 	vec2 intersect(vec2 p1, vec2 p2, vec2 p3, vec2 p4);
-	int nextContactPoint(int curveIndex, int pointIndex);
 	bool equals(const veci& curve, int index1, int index2);
 	void getClosePoints(int curveIndex1, int curveIndex2);
-	enum{LINE_SEGMENT, CLOSE_CURVE, OPEN_CURVE};
+	void setPoint(int curveIndex, int pointIndex, vec2 point);
 	void getCurvesRegularity(int curveIndex1, int curveIndex2);
+	void addJointRegularity(int curveIndex, int jointIndex, int startIndex);
+	enum{LINE_SEGMENT, CLOSE_CURVE, OPEN_CURVE, ENCLOSED_CURVE};
+	qreal intersectWithEdge(vec2& leftPoint, vec2& rightPoint, QVector<vec2> points, bool isJoint);
+
+	void addJoint(int& jointIndex, vec2 move, vec2 line);
+	qreal intersectWithCloseCurve(vec2& leftPoint, vec2& rightPoint, int curveIndex, vec2 begin, vec2 end);
+	bool isOnOutsideOrEqual(vec2 left, vec2 right, vec2 begin, vec2 end);
+	void addJointForCloseCurve(int curveIndex, bool isEnclosedCurve);
+
+	bool isJointInCloseCurve(int curveIndex, vec2 begin, vec2 end, vec2& left, vec2& right, qreal& distance);
+	qreal devide(vec2 vector1, vec2 vector2);
 };
