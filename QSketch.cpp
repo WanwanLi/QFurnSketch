@@ -7,7 +7,7 @@
 #define QDoubleMath QStanMath<double>
 QString QSketch::sketch2DFile="QSketch2D.sky";
 QString QSketch::sketch3DFile="QSketch3D.sky";
-QString QSketch::sketchModelFile="QSketchModel.sky";
+QString QSketch::sketchModelFile="QSketchMD.sky";
 
 QSketch::QSketch()
 {
@@ -16,11 +16,11 @@ QSketch::QSketch()
 	this->optimizer2D=newQOptimizer(inflator, sketch2DFile, 4000);
 	this->optimizer3D=newQOptimizer(normalizer, sketch3DFile, 600);
 }
-QSketch::QSketch(veci path, veci point2D, QViewer viewer)
+QSketch::QSketch(veci path, veci point3D, QViewer viewer)
 {
 	this->path=path;
 	this->viewer=viewer;
-	this->point2D=point2D;
+	this->point3D=point3D;
 }
 QOptimizer* QSketch::newQOptimizer(QThread* thread, QString sketchFile, int iterations)
 {
@@ -415,8 +415,9 @@ void QSketch::conncetJointToPlane()
 }
 void QSketch::antialias()
 {
-	if(!analyzer.planes.size())return; 
-	vec4 ground=analyzer.planes[analyzer.planes.size()-1];
+
+	if(!analyzer.planes.size())return;
+	/*vec4 ground=analyzer.planes[analyzer.planes.size()-1];
 	Vector4d groundPlane=QDoubleMath::toVector4t(ground);
 	Vector3d yAxis=QDoubleMath::toVector3t(analyzer.axis[1]);
 	QVector<QVector<Vector3d>> planePoints;
@@ -442,6 +443,7 @@ void QSketch::antialias()
 			QDoubleMath::createPlane(planePoints[i])
 		);
 	}
+	*/
 	this->conncetJointToPlane();
 }
 void QSketch::setPoint3D(int startIndex, vec2 point)

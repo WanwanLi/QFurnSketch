@@ -53,7 +53,7 @@ class QSketch : public QObject
 	void drawProgressBar(QPainter& painter);
 	void drawGroundPlane(QPainter& painter);
 	void drawRegularity3D(QPainter& painter);
-	QSketch(veci path, veci point2D, QViewer viewer);
+	QSketch(veci path, veci point3D, QViewer viewer);
 	enum{INITIALIZED, ANALYZED, INFLATED, NORMALIZED};
 	static QString sketch2DFile, sketch3DFile, sketchModelFile;
 

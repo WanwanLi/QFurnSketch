@@ -75,9 +75,8 @@ class QEnergy
 	Vector4v toVector4v(const VectorXd& vectorXd, int startIndex);
 	Vector3v sketchPoint(const VectorXv& variables, int sketchIndex);
 	Vector3v sketchPoint(const Vector2d& point, const Vector4v& plane);
-	//Vector3v sketchPoint(const Vector2v& point, const Vector4v& plane);
 	var stdDevAnglesEnergy(const VectorXv& variables, int start, int end);
-	var parallelEnergy(const Vector4v& plane1, const Vector4v& plane2);
+	var perpendicularEnergy(const Vector4v& plane1, const Vector4v& plane2);
 	void addAxis(int axisIndex, int startIndex, int endIndex, int planeIndex);
 	Vector3v addLineDirection(Vector3v dir1, Vector3v dir2);
 	var collinearEnergy(const MatrixXv& curve, const Vector4v& plane, int start, int end);

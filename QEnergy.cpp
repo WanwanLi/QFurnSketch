@@ -91,9 +91,9 @@ void QEnergy::addPointDistances(const VectorXv& variables, int start, int end)
 		this->pointDistances<<QVarMath::distanceBetween(p0, p1).val();
 	}
 }
-var QEnergy::parallelEnergy(const Vector4v& plane1, const Vector4v& plane2)
+var QEnergy::perpendicularEnergy(const Vector4v& plane1, const Vector4v& plane2)
 {
-	return QVarMath::distanceBetweenDirections(plane1.head(3), plane2.head(3));
+	return 1-QVarMath::distanceBetweenDirections(plane1.head(3), plane2.head(3));
 }
 var QEnergy::distanceEnergy(const Vector2v& point1, const Vector4v& plane1, const Vector2v& point2, const Vector4v& plane2)
 {
@@ -163,7 +163,7 @@ var QEnergy::weight(int type)
 		case R::FORWARD: return 0*100;
 		case R::HORIZONTAL: return 0*100;
 		case R::PARALLEL: return isPlaneOnly?2:0;
-		case R::PARALLEL_PLANES: return isPlaneOnly?2:0;
+		case R::PERPENDICULAR_PLANES: return isPlaneOnly?2:0;
 		case R::DISTANCE: return isPlaneOnly?2:0*20;
 		case R::COPLANAR: return isPlaneOnly?5:0*20;
 		case R::VERTICAL: return isPlaneOnly?2:0*100;
@@ -192,7 +192,7 @@ var QEnergy::totalEnergy(const VectorXv& variables)
 		switch(t(0))
 		{
 			case R::AXIS: if(isAddingAxis)addAxis(t(1), t(2), t(3), t(4)); break;
-			case R::PARALLEL_PLANES: energy+=weight(t(0))*parallelEnergy(planeOf(t(1)), planeOf(t(2))); QD("PARP"); break;
+			case R::PERPENDICULAR_PLANES: energy+=weight(t(0))*perpendicularEnergy(planeOf(t(1)), planeOf(t(2))); QD("PARP"); break;
 			case R::VERTICAL: energy+=weight(t(0))*verticalEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3))); QD("VER"); break;
 			case R::FORWARD:energy+=weight(t(0))*forwardEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3))); QD("FOR"); break;
 			case R::HORIZONTAL: energy+=weight(t(0))*horizontalEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3))); QD("HOR"); break;
@@ -423,7 +423,7 @@ void QEnergy::save(QString fileName)
 	QAnalyzer analyzer; 
 	analyzer.analyze
 	(
-		path, this->getPoint2D(), regularity, 
+		path, point3D, regularity,
 		this->getPlanes(), toVector3D(axis), viewer
 	);
 	analyzer.save(fileName);

@@ -182,7 +182,7 @@ Template(T) Vector3t QStanMath<T>::sketchPoint(const Vector2t& point, const Vect
 Template(T) Vector2t QStanMath<T>::canvasPoint(const Vector3t& point)
 {
 	Vector4t plane=createPlane(0, 0, 1, 0);
-	Vector3t direction=(Vector3t(0, 0.1, 1)).normalized();
+	Vector3t direction=(Vector3t(0, -0.1, -1)).normalized();
 	Vector3t intersectionPoint=intersectPlane(point, direction, plane);
 	return Vector2t(intersectionPoint(0), intersectionPoint(1));
 }

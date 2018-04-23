@@ -18,10 +18,10 @@ class QAnalyzer
 		SAME_POINTS,
 		LONGITUDINAL,
 		PERPENDICULAR,
-		CONTACT_POINTS, 
-		PARALLEL_PLANES,
 		GROUND_POINTS,
+		CONTACT_POINTS, 
 		SYMMETRIC, IDENTICAL, 
+		PERPENDICULAR_PLANES
 	};
 	void initAxis();
 	int planesSize;
@@ -45,15 +45,15 @@ class QAnalyzer
 	QVector<veci> sketchCurves, sketchPaths;
 	static void save(QTextStream& textStream, veci regularity);
 	veci regularity, joints, samePoints, markerLines, markerPoints, startPoints;
-	void analyze(veci path, veci point2D, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
+	void analyze(veci path, veci point3D, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
 
 	private:
+	bool updateJoints();
 	vec2 yAxis=vec2(0, 1);
-	veci getSketchPointY();
-	void getContactPoints();
 	vec2 getPoint(int index);
 	bool hasJointMarker=true;
 	void initializeJointGraph();
+	QVector<vec> sketchLengths;
 	void initializeSketchCurves();
 	void completeSketchCurves();
 	vec2 firstPoint(int curveIndex);
@@ -63,7 +63,6 @@ class QAnalyzer
 	vec2 getLineDirection(vec4 line);
 	bool hasCurveIndexMarker=true;
 	veci contactPoints, sketchPlanes;
-	qreal error=0.05, minDistance=5.0;
 	bool isParallel(int index, vec4 line2);
 	bool isJointType(const vec& positions);
 	void completeOpenCurve(int curveIndex);
@@ -82,18 +81,21 @@ class QAnalyzer
 	bool isJointType(int curveIndex, int& planeIndex);
 	vec2 intersect(vec2 p1, vec2 p2, vec2 p3, vec2 p4);
 	bool equals(const veci& curve, int index1, int index2);
+	qreal error=0.01, minLength=0.05, minDistance=5.0;
 	void getClosePoints(int curveIndex1, int curveIndex2);
 	void setPoint(int curveIndex, int pointIndex, vec2 point);
 	void getCurvesRegularity(int curveIndex1, int curveIndex2);
 	void addJointRegularity(int curveIndex, int jointIndex, int startIndex);
 	enum{LINE_SEGMENT, CLOSE_CURVE, OPEN_CURVE, ENCLOSED_CURVE};
-	qreal intersectWithEdge(vec2& leftPoint, vec2& rightPoint, QVector<vec2> points, bool isJoint);
 
+	void getPlanesRegularity();
 	void addJoint(int& jointIndex, vec2 move, vec2 line);
 	qreal intersectWithCloseCurve(vec2& leftPoint, vec2& rightPoint, int curveIndex, vec2 begin, vec2 end);
 	bool isOnOutsideOrEqual(vec2 left, vec2 right, vec2 begin, vec2 end);
 	void addJointForCloseCurve(int curveIndex, bool isEnclosedCurve);
-
+	void getSketchLengths(int curveIndex);
+	bool isShort(int curveIndex, int pointIndex);
 	bool isJointInCloseCurve(int curveIndex, vec2 begin, vec2 end, vec2& left, vec2& right, qreal& distance);
+	bool intersectWithEdge(qreal& distance, vec2& leftPoint, vec2& rightPoint, QVector<vec2> points, bool isJoint);
 	qreal devide(vec2 vector1, vec2 vector2);
 };
