@@ -18,6 +18,7 @@ Template(T) class QStanMath
 	static Vector3t xAxis, yAxis, zAxis;
 	static T min(T x, T y){return x<y?x:y;}
 	static T max(T x, T y){return x>y?x:y;}
+	static T cross2(Vector2t a, Vector2t b);
 	static Vector4t createPlane(T A, T B, T C, T D);
 	static Vector2t toVector2t(QVector2D vector2d);
 	static Vector3t toVector3t(QVector3D vector3d);
@@ -32,19 +33,28 @@ Template(T) class QStanMath
 	static QVector<T> toVector(const MatrixXt& matrixXt);
 	static Vector4t normalizedPlane(const Vector4t& plane);
 	static Vector3t* getQuad(Vector4t plane, Vector3t space);
+	static VectorXt linearPointAt(VectorXt p0, VectorXt p1, T t);
 	static Vector4t createPlane(const QVector<Vector3t>& points);
 	static Vector4t perturbedPlane(const Vector4t& plane, T noise);
+	static Vector2t cubicNormalAt(Vector2t p0, Vector2t p1, Vector2t p2, Vector2t p3, T t);
+	static Vector2t cubicTangentAt(Vector2t p0, Vector2t p1, Vector2t p2, Vector2t p3, T t);
+	static T cubicCurvatureAt(Vector2t p0, Vector2t p1, Vector2t p2, Vector2t p3, T t);
+	static T cubicCurvatureAt(Vector3t p0, Vector3t p1, Vector3t p2, Vector3t p3, T t);
 	static MatrixXt subCurve(const MatrixXt& curve, int start, int end);
 	static T distanceSquareBetween(MatrixXt& curve1, MatrixXt& curve2);
 	static T distanceToPlane(const Vector3t& point, const Vector4t& plane);
+	static VectorXt quadricPointAt(VectorXt p0, VectorXt p1, VectorXt p2, T t);
 	static Vector3t sketchPoint(const Vector2t& point, const Vector4t& plane);
 	static Vector4t createPlane(const Vector3t& point, const Vector3t& normal);
 	static T distanceBetween(const VectorXt& vector1, const VectorXt& vector2);
+	static Vector2t texCoord(Vector3t point, Vector3t tangent, Vector3t bitangent);
 	static Vector3t projectedPoint(const Vector3t& point, const Vector4t& plane);
 	static MatrixXt projectedCurve(const MatrixXt& curve, const Vector4t& plane);
 	static Vector3t* intersectPlane(Vector4t plane, Vector3t axis, Vector3t* points);
 	static T distanceBetweenDirections(const Vector3t& dir1, const Vector3t& dir2);
 	static Vector3t antialiasPoint(Vector3t point, Vector3t yAxis, Vector4t groundPlane);
+	static T argmaxCurvatureOfCubic(Vector3t p0, Vector3t p1, Vector3t p2, Vector3t p3);
+	static VectorXt cubicPointAt(VectorXt p0, VectorXt p1, VectorXt p2, VectorXt p3, T t);
 	static Vector4t translatedPlane(const Vector4t& plane, const Vector3t& translation);
 	static Vector3t intersectPlane(const Vector3t& origin, const Vector3t& direction, const Vector4t& plane);
 	static T cosAngle(const Vector3t& begin1, const Vector3t& end1, const Vector3t& begin2, const Vector3t& end2);
@@ -173,16 +183,77 @@ Template(T) T QStanMath<T>::distanceSquareBetween(MatrixXt& curve1, MatrixXt& cu
 	}
 	return distanceSquare;
 }
+Template(T) VectorXt QStanMath<T>::linearPointAt(VectorXt p0, VectorXt p1, T t)
+{
+	return p0*(1-t)+p1*t;
+}
+Template(T) VectorXt QStanMath<T>::quadricPointAt(VectorXt p0, VectorXt p1, VectorXt p2, T t)
+{
+	return p0*(1-t)*(1-t)+2*p1*(1-t)*t+p2*t*t;
+}
+Template(T) VectorXt QStanMath<T>::cubicPointAt(VectorXt p0, VectorXt p1, VectorXt p2, VectorXt p3, T t)
+{
+	return p0*(1-t)*(1-t)*(1-t)+3*p1*(1-t)*(1-t)*t+3*p2*(1-t)*t*t+p3*t*t*t;
+}
+Template(T) T QStanMath<T>::cross2(Vector2t a, Vector2t b)
+{
+	return a(0)*b(1)-a(1)*b(0);
+}
+Template(T) Vector2t QStanMath<T>::texCoord(Vector3t point, Vector3t tangent, Vector3t bitangent)
+{
+	return Vector2t(point.dot(tangent), point.dot(bitangent));
+}
+Template(T) T QStanMath<T>::cubicCurvatureAt(Vector3t p0, Vector3t p1, Vector3t p2, Vector3t p3, T t)
+{
+	Vector3t du=p1-p0, dv=p2-p0;
+	Vector3t y=du.cross(dv).normalized();
+	Vector3t x=dv.normalized(), z=x.cross(y);
+	Vector2t q0=texCoord(p0-p0, z, x), q1=texCoord(p1-p0, z, x);
+	Vector2t q2=texCoord(p2-p0, z, x), q3=texCoord(p3-p0, z, x);
+	return cubicCurvatureAt(q0, q1, q2, q3, t);
+}
+Template(T) T QStanMath<T>::cubicCurvatureAt(Vector2t p0, Vector2t p1, Vector2t p2, Vector2t p3, T t)
+{
+	Vector2t d0=3*(p1-p0), d1=3*(p2-p1), d2=3*(p3-p2);
+	Vector2t q0=2*(d1-d0), q1=2*(d2-d1);
+	Vector2t d=quadricPointAt(d0, d1, d2, t);
+	Vector2t q=linearPointAt(q0, q1, t);
+	T k=cross2(d, q), l=d.squaredNorm(); return sqrt(k*k/(l*l*l));
+}
+Template(T) Vector2t QStanMath<T>::cubicTangentAt(Vector2t p0, Vector2t p1, Vector2t p2, Vector2t p3, T t)
+{
+	Vector2t d0=3*(p1-p0), d1=3*(p2-p1), d2=3*(p3-p2);
+	return quadricPointAt(d0, d1, d2, t);
+}
+Template(T) Vector2t QStanMath<T>::cubicNormalAt(Vector2t p0, Vector2t p1, Vector2t p2, Vector2t p3, T t)
+{
+	Vector2t tangent=(cubicTangentAt(p0, p1, p2, p3, t));
+	return Vector2t(-tangent(1), tangent(0)).normalized();
+}
+Template(T) T QStanMath<T>::argmaxCurvatureOfCubic(Vector3t p0, Vector3t p1, Vector3t p2, Vector3t p3)
+{
+	T argmax=0, maxCurvature=0.0, dt=0.05;
+	for(T t=0.0; t<1.0; t+=dt)
+	{
+		T curvature=cubicCurvatureAt(p0, p1, p2, p3, t);
+		if(curvature>maxCurvature)
+		{
+			maxCurvature=curvature;
+			argmax=t;
+		}
+	}
+	return argmax;
+}
 Template(T) Vector3t QStanMath<T>::sketchPoint(const Vector2t& point, const Vector4t& plane)
 {
 	Vector3t pixel=Vector3t(point(0), point(1), 0);
-	Vector3t direction=(Vector3t(0, -0.1, -1)).normalized();
+	Vector3t direction=(Vector3t(0, 0.1, -1)).normalized();
 	return intersectPlane(pixel-direction, direction, plane);
 }
 Template(T) Vector2t QStanMath<T>::canvasPoint(const Vector3t& point)
 {
 	Vector4t plane=createPlane(0, 0, 1, 0);
-	Vector3t direction=(Vector3t(0, -0.1, -1)).normalized();
+	Vector3t direction=(Vector3t(0, 0.1, -1)).normalized();
 	Vector3t intersectionPoint=intersectPlane(point, direction, plane);
 	return Vector2t(intersectionPoint(0), intersectionPoint(1));
 }

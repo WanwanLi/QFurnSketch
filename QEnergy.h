@@ -12,7 +12,7 @@ class QEnergy
 {
 	public:
 	QEnergy(){}
-	veci path;
+	veci path, sketchPath;
 	int planeSize;
 	QVector<Vector3v> axis;
 	QVector<veci> axisIndices;
@@ -21,7 +21,7 @@ class QEnergy
 	veci samePoints;
 	veci regularity;
 	void analyze();
-	veci point3D;
+	veci point3D, sketchVector;
 	veci getPoint2D();
 	vec pointDistances;
 	QVector<vec4> getPlanes();
@@ -35,11 +35,13 @@ class QEnergy
 	QVector<Vector3v> groundPoints;
 	Vector3v upward(const Vector4v& ground);
 	Vector2v pointAt(int index);
-	var QEnergy::weight(int type);
+	Vector2v getPointAt(int index);
+	var weight(int type);
 	vec toQVector(VectorXd vector);
 	veci toQVector(VectorXi vector);
 	vec toQVector(VectorXv vector);
 	var decay(var distance, var speed);
+	var curvatureAt(const VectorXv& variables, int index);
 	var scaleAt(const VectorXv& variables, int index);
 	VectorXd variables;
 	bool isPlaneOnly=true;
@@ -58,6 +60,7 @@ class QEnergy
 	QVector3D toQVector3D(Vector3v vector3v);
 	QVector4D toQVector4D(Vector4v vector4v);
 	Vector4v toVector4v(vec4 vector4D);
+	void getSketchPath(veci path);
 	QVector<QVector3D> toVector3D(QVector<Vector3v> vector3v);
 	QVector<Vector3v> toVector3v(QVector<QVector3D> vector3D);
 	var horizontalEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane);
@@ -76,13 +79,14 @@ class QEnergy
 	Vector3v sketchPoint(const VectorXv& variables, int sketchIndex);
 	Vector3v sketchPoint(const Vector2d& point, const Vector4v& plane);
 	var stdDevAnglesEnergy(const VectorXv& variables, int start, int end);
+	var stdDevCurvaturesEnergy(const VectorXv& variables, int start, int end);
 	var perpendicularEnergy(const Vector4v& plane1, const Vector4v& plane2);
 	void addAxis(int axisIndex, int startIndex, int endIndex, int planeIndex);
 	Vector3v addLineDirection(Vector3v dir1, Vector3v dir2);
 	var collinearEnergy(const MatrixXv& curve, const Vector4v& plane, int start, int end);
 	var verticalEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& plane);
 	var totalEnergy(const VectorXi& sketch, const VectorXi& joint, const VectorXv& plane, int planeSize);
-	QEnergy(veci path, veci sketch, int planeSize, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
+	QEnergy(veci path, veci point3D, veci sketch, int planeSize, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
 	var distanceEnergy(const Vector2v& point1, const Vector4v& plane1, const Vector2v& point2, const Vector4v& plane2);
 	var coplanarEnergy(const Vector2v& startPoint, const Vector2v& endPoint, const Vector4v& srcPlane, const Vector4v& destPlane);
 	var perpendicularEnergy(const Vector2v& leftPoint, const Vector2v& midPoint, const Vector2v& rightPoint, const Vector4v& plane);

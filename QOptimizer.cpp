@@ -32,7 +32,7 @@ void QOptimizer::emitValueChanged(int value, const VectorXd& variable)
 	#define path energy->path
 	QFile file(fileName+num(value));
 	if(!file.open(QIODevice::WriteOnly))return;
-	#define planeIndex(i) energy->sketch(i*3+2)
+	#define planeIndex(i) energy->point3D[i*3+2]
 	MatrixXv points=energy->getSketchPoints(variable);
 	VectorXv variables=energy->toVectorXv(variable);
 	energy->getAxis(variables);
@@ -94,6 +94,7 @@ void QOptimizer::start()
 	this->energy=new QEnergy
 	(
 		sketch.path, sketch.point3D,
+		sketch.analyzer.sketchVector,
 		sketch.analyzer.planesSize,
 		sketch.analyzer.regularity,
 		sketch.analyzer.planes,

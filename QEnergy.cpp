@@ -1,7 +1,7 @@
 #include <QFile>
 #include <QDebug>
 #include "QEnergy.h"
-#include "QAnalyzer.h"
+#include "QSketch.h"
 #include <QTextStream>
 #define QVarMath QStanMath<var>
 #define QDoubleMath QStanMath<double>
@@ -70,6 +70,41 @@ var QEnergy::stdDevScalesEnergy(const VectorXv& variables, int start, int end)
 		stdDevScale+=dev*dev;
 	}
 	return stdDevScale;
+}
+var QEnergy::curvatureAt(const VectorXv& variables, int index)
+{
+	int i0=index-1, i1=index+0, i2=index+1, i3=index+2;
+	Vector3v p0=sketchPoint(variables, i0);
+	Vector3v p1=sketchPoint(variables, i1);
+	Vector3v p2=sketchPoint(variables, i2);
+	Vector3v p3=sketchPoint(variables, i3);
+	var t=QVarMath::argmaxCurvatureOfCubic(p0, p1, p2, p3);
+	return QVarMath::cubicCurvatureAt(p0, p1, p2, p3, t);
+}
+var QEnergy::stdDevCurvaturesEnergy(const VectorXv& variables, int start, int end)
+{
+	var mean=0;
+	QVector<var> curvatures;
+	for(int i=start; i<end; i++)
+	{
+		if(sketchPath[i]==QSketch::CUBIC)
+		{
+			var curvature=curvatureAt(variables, i); i+=2;
+			curvatures<<curvature; mean+=curvature;
+//qDebug()<<"curvatures[i]="<<curvatures.last().val();
+		}
+	}
+	if(curvatures.size()==0)return 0;
+	mean/=curvatures.size();
+	var stdDevCurvature=0;
+	for(var curvature : curvatures)
+	{
+		var dev=curvature-mean;
+		stdDevCurvature+=dev*dev;
+	}
+//	qDebug()<<"mean curvature="<<mean.val();
+//	qDebug()<<"stdDevCurvature="<<stdDevCurvature.val();
+	return stdDevCurvature;
 }
 var QEnergy::accuracyEnergy(const VectorXv& variables, int start, int end)
 {
@@ -168,7 +203,7 @@ var QEnergy::weight(int type)
 		case R::COPLANAR: return isPlaneOnly?5:0*20;
 		case R::VERTICAL: return isPlaneOnly?2:0*100;
 		case R::PERPENDICULAR: return isPlaneOnly?0:0*0;
-		case R::SAME_POINTS: return isPlaneOnly?4:0*200;
+		case R::LOOP: return isPlaneOnly?4:0*200;
 		case R::CONTACT_POINTS: return isPlaneOnly?0*10:0*100;
 	}
 	return isPlaneOnly?1:0;
@@ -196,16 +231,18 @@ var QEnergy::totalEnergy(const VectorXv& variables)
 			case R::VERTICAL: energy+=weight(t(0))*verticalEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3))); QD("VER"); break;
 			case R::FORWARD:energy+=weight(t(0))*forwardEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3))); QD("FOR"); break;
 			case R::HORIZONTAL: energy+=weight(t(0))*horizontalEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3))); QD("HOR"); break;
-			case R::DISTANCE: energy+=weight(t(0))*distanceEnergy(pointOf(t(1)), planeOf(t(2)), pointOf(t(3)), planeOf(t(4))); QD("DIS"); break;
-			case R::COPLANAR: energy+=weight(t(0))*coplanarEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), planeOf(t(4))); QD("COP"); break;
+			case R::DISTANCE: energy+=weight(t(0))*distanceEnergy(getPointAt(t(1)), planeOf(t(2)), getPointAt(t(3)), planeOf(t(4))); QD("DIS"); break;
+			case R::COPLANAR: energy+=weight(t(0))*coplanarEnergy(getPointAt(t(1)), getPointAt(t(2)), planeOf(t(3)), planeOf(t(4))); QD("COP"); break;
 			case R::CONTACT_POINTS: energy+=weight(t(0))*distanceEnergy(pointOf(t(1)), planeOf(t(2)), pointOf(t(1)), ground); QD("GCOP"); break;
 			case R::PERPENDICULAR: energy+=weight(t(0))*perpendicularEnergy(pointOf(t(1)), pointOf(t(2)), pointOf(t(3)), planeOf(t(4))); QD("PER"); break;
 			case R::PARALLEL: energy+=weight(t(0))*parallelEnergy(pointOf(t(1)), pointOf(t(2)), planeOf(t(3)), pointOf(t(4)), pointOf(t(5)), planeOf(t(6))); QD("PAR"); break;
-			case R::SAME_POINTS: 
+			case R::LOOP:
 				//if(isAddingSamePoints){this->samePoints<< t(1)<< t(2); if(!isPlaneOnly)this->addPointDistances(variables, t(1), t(2));}
 				if(isPlaneOnly)
 				{
-					energy+=weight(t(0))*stdDevAnglesEnergy(variables, t(1), t(2)-1); QD("SDVA");
+					var standardDeviationAngles=weight(t(0))*stdDevAnglesEnergy(variables, t(1), t(2)-1); QD("SDVA");
+					var standardDeviationCurvatures=0.0;//*stdDevCurvaturesEnergy(variables, t(1), t(2)-1); QD("SDVC");
+					energy+=standardDeviationCurvatures>0?standardDeviationCurvatures:standardDeviationAngles;
 					energy+=0.1*stdDevScalesEnergy(variables, t(1), t(2)-1); QD("SDVS");
 				}
 				else {energy+=weight(t(0))*accuracyEnergy(variables, t(1), t(2)-1); QD("ACC");} break;
@@ -296,22 +333,38 @@ Vector3v QEnergy::sketchPoint(const VectorXv& variables, int sketchIndex)
 }
 MatrixXv QEnergy::getSketchPoints(const VectorXd& variable)
 {
-	int size=sketch.size()/3;
+	int size=point3D.size()/3;
 	MatrixXv sketchPoints(3, size);
 	for(int i=0; i<size; i++)
 	{
-		int pointIndex=planeSize*4+i*2;
-		int planeIndex=sketch(i*3+2)*4;
-		Vector2v point=toVector2v(variable, pointIndex);
+		int x=point3D[i*3+0], y=point3D[i*3+1];
+		int planeIndex=point3D[i*3+2]*4;
+		vec2 pixel=viewer.sketchPixel(x, y);
+		Vector2v point=Vector2v(pixel.x(), pixel.y());
 		Vector4v plane=toVector4v(variable, planeIndex);
 		sketchPoints.col(i)=QVarMath::sketchPoint(point, plane);
 	}
 	return sketchPoints;
 }
-QEnergy::QEnergy(veci path, veci sketch, int planeSize, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer)
+void QEnergy::getSketchPath(veci path)
 {
-	this->path=path; this->point3D=sketch; 
-	this->regularity=regularity; this->viewer=viewer;
+	this->sketchPath.clear();
+	for(int p : path)
+	{
+		if(p==QSketch::CUBIC)
+		this->sketchPath<<p<<p<<p;
+		else this->sketchPath<<p;
+	}
+}
+QEnergy::QEnergy(veci path, veci point3D, veci sketch, int planeSize, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer)
+{
+//	this->getSketchPath(path);
+	qDebug()<<"QEnergy::QEnergy.sketchPath="<<sketchPath;
+	qDebug()<<"QEnergy::QEnergy.sketch="<<sketch;
+	this->path=path; this->point3D=point3D;
+	this->sketchVector=sketch;
+	this->regularity=regularity;
+	this->viewer=viewer;
 	vec pixels, variables; 
 	if(planes.size())
 	{
@@ -344,6 +397,7 @@ QEnergy::QEnergy(veci path, veci sketch, int planeSize, veci regularity, QVector
 	}
 	this->sketch=toVectorXd(pixels);
 	this->variables=toVectorXd(variables);
+	qDebug()<<"QEnergy::QEnerg variables="<<variables;
 }
 QVector<QVector3D> QEnergy::toVector3D(QVector<Vector3v> vector3v)
 {
@@ -421,9 +475,9 @@ void QEnergy::save(QString fileName)
 {
 	this->analyze();
 	QAnalyzer analyzer; 
-	analyzer.analyze
+	analyzer.load
 	(
-		path, point3D, regularity,
+		path, point3D, sketchVector, regularity,
 		this->getPlanes(), toVector3D(axis), viewer
 	);
 	analyzer.save(fileName);
@@ -433,6 +487,13 @@ Vector2v QEnergy::pointAt(int index)
 	double x=sketch(index*3+0);
 	double y=sketch(index*3+1);
 	return Vector2v(x, y);
+}
+Vector2v QEnergy::getPointAt(int index)
+{
+	int x=point3D[index*3+0];
+	int y=point3D[index*3+1];
+	vec2 pixel=viewer.sketchPixel(x, y);
+	return QVarMath::toVector2t(pixel);
 }
 Vector2v QEnergy::pointAt(const VectorXv& variable, int index)
 {

@@ -14,7 +14,6 @@ void QProblem::getValue(const VectorXd& variable)
 		return energy->totalEnergy(variable);
 	};
 	stan::math::gradient(totalEnergy, variable, val, grad);
-	energy->copySameGradients(grad);
 }
 double QProblem::value(const VectorXd& variable)
 {

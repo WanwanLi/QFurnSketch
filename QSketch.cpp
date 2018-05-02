@@ -327,17 +327,17 @@ bool QSketch::analyze()
 bool QSketch::inflate()
 {
 	if(inflator->isRunning())return false;
-	this->inflator->start();
-	return true;
+	if(normalizer->isRunning())return false;
+	this->inflator->start(); return true;
 }
 bool QSketch::normalize()
 {
+	if(inflator->isRunning())return false;
 	if(normalizer->isRunning())return false;
-	this->normalizer->start();
 	this->horizontal.clear();
 	this->forward.clear();
 	this->displayRegularity3D=false;
-	return true;
+	this->normalizer->start(); return true;
 }
 QVector<vec3*> QSketch::getPoint4D()
 {
@@ -384,16 +384,15 @@ vec3 QSketch::getPoint3D(int index)
 	vec4 plane=analyzer.planes[point3D[index+2]];
 	return QDoubleMath::toVector3D
 	(
-				QDoubleMath::sketchPoint
-				(
-					QDoubleMath::toVector2t(sketchPixel),
-					QDoubleMath::toVector4t(plane)
-				)
+		QDoubleMath::sketchPoint
+		(
+			QDoubleMath::toVector2t(sketchPixel),
+			QDoubleMath::toVector4t(plane)
+		)
 	);
 }
 void QSketch::conncetJointToPlane()
 {
-	qDebug()<<analyzer.joints<<analyzer.samePoints;
 	for(int i=0; i<analyzer.joints.size(); i+=3)
 	{
 		int c0=analyzer.joints[i+0], c1=analyzer.joints[i+1], p=analyzer.joints[i+2];
@@ -413,11 +412,9 @@ void QSketch::conncetJointToPlane()
 		this->setPoint3D(c1*3, vec2(x, y));
 	}
 }
-void QSketch::antialias()
+void QSketch::beautify()
 {
-
-	if(!analyzer.planes.size())return;
-	/*vec4 ground=analyzer.planes[analyzer.planes.size()-1];
+	vec4 ground=analyzer.planes[analyzer.planes.size()-1];
 	Vector4d groundPlane=QDoubleMath::toVector4t(ground);
 	Vector3d yAxis=QDoubleMath::toVector3t(analyzer.axis[1]);
 	QVector<QVector<Vector3d>> planePoints;
@@ -443,7 +440,10 @@ void QSketch::antialias()
 			QDoubleMath::createPlane(planePoints[i])
 		);
 	}
-	*/
+}
+void QSketch::antialias()
+{
+	if(!analyzer.planes.size())return;
 	this->conncetJointToPlane();
 }
 void QSketch::setPoint3D(int startIndex, vec2 point)

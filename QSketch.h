@@ -58,6 +58,7 @@ class QSketch : public QObject
 	static QString sketch2DFile, sketch3DFile, sketchModelFile;
 
 	private:
+	void beautify();
 	vec4 groundPlane;
 	bool isUpdated=false;
 	vec3 xAxis, yAxis, zAxis;

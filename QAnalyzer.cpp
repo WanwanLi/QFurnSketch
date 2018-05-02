@@ -1,16 +1,19 @@
 #include <QFile>
 #include "QSketch.h"
+#include "QStanMath.h"
 #include <QtAlgorithms>
 #define LINE sketch->LINE
 #define MOVE sketch->MOVE
 #define CUBIC sketch->CUBIC
 #define INITIAL sketch->INITIALIZED
 #define dot(x, y) vec3::dotProduct(x, y)
+#define QDoubleMath QStanMath<double>
 
 QString QAnalyzer::toString(int value)
 {
 	if(value==AXIS)return "AXIS";
 	else if(value==JOINT)return "JON";
+	else if(value==LOOP)return "LOOP";
 	else if(value==VERTICAL)return "VER";
 	else if(value==DISTANCE)return "DIS";
 	else if(value==PARALLEL)return "PAR";
@@ -30,6 +33,7 @@ int QAnalyzer::toValue(QString string)
 {
 	if(string=="AXIS")return AXIS;
 	else if(string=="JON")return JOINT;
+	else if(string=="LOOP")return LOOP;
 	else if(string=="VER")return VERTICAL;
 	else if(string=="DIS")return DISTANCE;
 	else if(string=="PAR")return PARALLEL;
@@ -51,6 +55,7 @@ int QAnalyzer::count(int value)
 	{
 		case AXIS: return 4;
 		case JOINT: return 3;
+		case LOOP: return 2;
 		case VERTICAL: return 3;
 		case DISTANCE: return 4;
 		case FORWARD: return 3;
@@ -84,6 +89,13 @@ void QAnalyzer::operator<<(QStringList& list)
 			list[3].toDouble(), list[4].toDouble()
 		);
 		this->planes<<plane;
+	}
+	else if(list[0]=="k")
+	{
+		int x=list[1].toInt();
+		int y=list[2].toInt();
+		int p=list[3].toInt();
+		this->sketchVector<<x<<y<<p;
 	}
 	else if(list[0]=="x"||list[0]=="y"||list[0]=="z")
 	{
@@ -127,6 +139,8 @@ void QAnalyzer::initializeSketchCurves()
 #define path sketch->path
 #define viewer sketch->viewer
 #define point2D sketch->point2D
+	QVector<veci> sketchPaths1, sketchPaths2;
+	QVector<veci> sketchCurves1, sketchCurves2;
 	for(int i=0, j=0; i<path.size(); i++)
 	{
 		if(path[i]==MOVE)
@@ -159,20 +173,30 @@ void QAnalyzer::initializeSketchCurves()
 			}
 			if(sketchCurve.size()>0)
 			{
-				this->sketchPaths<<sketchPath;
-				this->sketchCurves<<sketchCurve;
+				if(sketchPath.size()>2)
+				{
+					sketchPaths1<<sketchPath;
+					sketchCurves1<<sketchCurve;
+				}
+				else
+				{
+					sketchPaths2<<sketchPath;
+					sketchCurves2<<sketchCurve;
+				}
+
 			}
 			if(i<path.size())i--;
 		}
 	}
+	this->sketchPaths=sketchPaths1+sketchPaths2;
+	this->sketchCurves=sketchCurves1+sketchCurves2;
 	for(int i=0; i<sketchCurves.size(); i++)
 	{
 		if(sketchCurves[i].size()==4)
 		this->sketchTypes<<LINE_SEGMENT;
 		else
 		{
-			int first=0, last=sketchCurves[i].size()-2;
-			if(equals(sketchCurves[i], first, last))
+			if(equals(firstPoint(i), lastPoint(i)))
 			{
 				this->sketchTypes<<CLOSE_CURVE;
 			}
@@ -185,36 +209,156 @@ void QAnalyzer::initializeSketchCurves()
 		this->sketchPlanes<<i;
 		this->isJoint<<isJointType(i, planeIndex);
 		if(isJoint[i])this->sketchPlanes[i]=planeIndex;
-		if(isJoint[i]&&hasJointMarker)
-		{
-			vec2 p0=getPoint(i, 0), p1=getPoint(i, 1);
-			this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
-		}
+		if(isJoint[i]&&hasJointMarker)this->addJointMarker(i);
 	}
-	veci planeIndices; this->planesSize=0;
-	for(int i=0; i<sketchPlanes.size(); i++)
-	{
-		planeIndices<<(sketchPlanes[i]>=planesSize?this->planesSize++:sketchPlanes[i]);
-	}
-	this->sketchPlanes.clear();
-	this->sketchPlanes=planeIndices;
+	this->planesSize=max(sketchPlanes)+1;
 	#undef path
 	#undef viewer
 	#undef point2D
 }
-void QAnalyzer::analyze(veci path, veci point3D, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer)
+int QAnalyzer::max(veci array)
 {
-	QSketch* sketch=new QSketch(path, point3D, viewer);
-	this->load(sketch);
-	this->planes=planes;
-	this->axis=axis;
-	this->regularity=regularity;
+	int result=array[0];
+	for(int e : array)
+	result=qMax(e, result);
+	return result;
+}
+void QAnalyzer::addJointMarker(int jointIndex)
+{
+	vec2 p=getPoint(jointIndex, 0), q=getPoint(jointIndex, 1);
+	vec2 d=p-q, r=vec2(d.y(), -d.x()).normalized()*5, p0, p1;
+	p0=p+r; p1=p-r; this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
+	p0=q+r; p1=q-r; this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
+}
+void QAnalyzer::copySketchCurves()
+{
+	this->sketch->path.clear();
+	this->sketch->point3D.clear();
+	this->sketchCurveSizes.clear();
+	for(int i=0, size=0; i<sketchPaths.size(); i++)
+	{
+		veci path=sketchPaths[i];
+		veci point2D=sketchCurves[i];
+		for(int j=0, k=0; j<path.size(); j++)
+		{
+			this->sketch->path<<path[j];
+			if(path[j]==MOVE||path[j]==LINE)
+			{
+				int x=point2D[k++], y=point2D[k++];
+				this->sketch->point3D<<x<<y<<sketchPlanes[i];
+			}
+			else
+			{
+				int c1=point2D[k++], c2=point2D[k++]; j++;
+				int c3=point2D[k++], c4=point2D[k++]; j++;
+				int c5=point2D[k++], c6=point2D[k++];
+				this->sketch->point3D<<c1<<c2<<sketchPlanes[i];
+				this->sketch->point3D<<c3<<c4<<sketchPlanes[i];
+				this->sketch->point3D<<c5<<c6<<sketchPlanes[i];
+			}
+		}
+		this->sketchCurveSizes<<size; size+=path.size();
+	}
+}
+void QAnalyzer::simplifySketchCurves()
+{
+	QVector<veci> paths;
+	QVector<veci> curves;
+	for(int i=0; i<sketchPaths.size(); i++)
+	{
+		if(sketchPaths[i].size()<=4)
+		{
+			paths<<sketchPaths[i];
+			curves<<sketchCurves[i];
+			continue;
+		}
+		paths<<veci(); curves<<veci();
+		for(int j=0; j<sketchPaths[i].size(); j++)
+		{
+			if(sketchPaths[i][j]==MOVE||sketchPaths[i][j]==LINE)
+			{
+				paths[i]<<sketchPaths[i][j];
+				curves[i]<<sketchCurves[i][j*2+0];
+				curves[i]<<sketchCurves[i][j*2+1];
+			}
+			else
+			{
+				for
+				(
+				 j+=3; j<sketchPaths[i].size()
+				 &&sketchPaths[i][j]==CUBIC; j+=3
+				);
+				j--;
+				paths[i]<<LINE;
+				curves[i]<<sketchCurves[i][j*2+0];
+				curves[i]<<sketchCurves[i][j*2+1];
+			}
+		}
+	}
+	this->sketchPaths=paths;
+	this->sketchCurves=curves;
+}
+void QAnalyzer::finalizeSketchCurves()
+{
+	for(int i=0; i<sketchTypes.size(); i++)
+	{
+		if(hasJointMarker&&isJoint[i])
+		{
+			vec2 p0=getPoint(i, 0), p1=getPoint(i, 1);
+			this->markerPoints<<p0.x()<<p0.y()<<p1.x()<<p1.y();
+		}
+		if(hasCurveIndexMarker)
+		{
+			vec2 p0=getPoint(i, 0);  this->startPoints<<p0.x()<<p0.y();
+		}
+	}
+}
+void QAnalyzer::getSketchVector()
+{
+	this->sketchSizes.clear();
+	this->sketchVector.clear();
+	for(int i=0, size=0; i<sketchPaths.size(); i++)
+	{
+		veci path=sketchPaths[i];
+		veci point2D=sketchCurves[i];
+		for(int j=0, k=0; j<path.size(); j++)
+		{
+			if(path[j]==MOVE||path[j]==LINE)
+			{
+				int x=point2D[k++], y=point2D[k++];
+				this->sketchVector<<x<<y<<sketchPlanes[i];
+			}
+			else
+			{
+				int c1=point2D[k++], c2=point2D[k++]; j++;
+				int c3=point2D[k++], c4=point2D[k++]; j++;
+				int c5=point2D[k++], c6=point2D[k++];
+				this->sketchVector<<c1<<c2<<sketchPlanes[i];
+				this->sketchVector<<c3<<c4<<sketchPlanes[i];
+				this->sketchVector<<c5<<c6<<sketchPlanes[i];
+			}
+		}
+		this->sketchSizes<<size; size+=path.size();
+	}
+
+}
+void QAnalyzer::encloseSketchCurves(bool isLoop)
+{
+	for(int i=0; i<sketchTypes.size(); i++)
+	{
+		if(sketchTypes[i]==ENCLOSED_CURVE)
+		this->sketchTypes[i]=CLOSE_CURVE;
+		if(sketchTypes[i]==CLOSE_CURVE)
+		{
+
+			this->isSketchCurve=!isLoop;
+			int first=indexOf(i, 0), size=sketchPaths[i].size();
+			this->regularity<<(isLoop?LOOP:SAME_POINTS)<<first<<first+size-1;
+		}
+	}
 }
 void QAnalyzer::run()
 {
-	this->joints.clear();
-	this->regularity.clear();
-	this->parallelLines.clear();
 	this->initializeSketchCurves();
 	this->initializeJointGraph();
 	do
@@ -229,23 +373,66 @@ void QAnalyzer::run()
 		this->addJointForCloseCurve(i, true);
 	}
 	while(updateJoints());
-	this->completeSketchCurves();
+	this->planesSize=max(sketchPlanes)+1;
+	this->copySketchCurves();
 	for(int i=0; i<sketchCurves.size(); i++)
 	{
+		this->getCurvatures(i);
 		this->getSketchLengths(i);
-		this->getCurvesRegularity(i);
 	}
+	this->encloseSketchCurves(false);
+	this->simplifySketchCurves();
+	this->getSketchVector();
+	this->encloseSketchCurves(true);
+	this->finalizeSketchCurves();
+	for(int i=0; i<sketchCurves.size(); i++)
+	this->getCurvesRegularity(i);
 	for(int i=0; i<sketchCurves.size()-1; i++)
+	for(int j=i+1; j<sketchCurves.size(); j++)
+	this->getCurvesRegularity(i, j);
+	this->getPlanesRegularity();
+	this->updateRegularity();
+}
+void QAnalyzer::load(veci path, veci point3D, veci sketchVector, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer)
+{
+	QSketch* sketch=new QSketch(path, point3D, viewer);
+	this->load(sketch);
+	this->axis=axis;
+	this->planes=planes;
+	this->regularity=regularity;
+	this->sketchVector=sketchVector;
+}
+#define getVector3d(v) Vector3d(v(0), v(1), 0)
+#define toVector2d(x) QDoubleMath::toVector2t(x)
+#define toVector2D(x) QDoubleMath::toVector2D(x)
+void QAnalyzer::getCurvatures(int curveIndex)
+{
+	int i=curveIndex, m=10; qreal l=2000;
+	for(int j=1; j<sketchPaths[i].size(); j++)
 	{
-		for(int j=i+1; j<sketchCurves.size(); j++)
+		if(sketchPaths[i][j]==CUBIC)
 		{
-			this->getClosePoints(i, j);
-			this->getCurvesRegularity(i, j);
+			Vector2d p0=toVector2d(getPoint(i, j-1)), p1=toVector2d(getPoint(i, j-0));
+			Vector2d p2=toVector2d(getPoint(i, j+1)), p3=toVector2d(getPoint(i, j+2));			
+			for(qreal t=0; t<m; t++)
+			{
+				Vector2d p=QDoubleMath::cubicPointAt(p0, p1, p2, p3, t*1.0/m);
+				Vector2d n=QDoubleMath::cubicNormalAt(p0, p1, p2, p3, t*1.0/m);
+				qreal k=QDoubleMath::cubicCurvatureAt(p0, p1, p2, p3, t*1.0/m);
+				Vector2d q=p+n*l*k; this->markerLines<<p(0)<<p(1)<<q(0)<<q(1);
+			}
+			Vector3d q0=getVector3d(p0), q1=getVector3d(p1);
+			Vector3d q2=getVector3d(p2), q3=getVector3d(p3);
+			qreal t=QDoubleMath::argmaxCurvatureOfCubic(q0, q1, q2, q3);
+			Vector2d p=QDoubleMath::cubicPointAt(p0, p1, p2, p3, t);
+			this->markerPoints<<p(0)<<p(1);
+			j+=2;
 		}
 	}
-	this->getPlanesRegularity();
-	this->update();
 }
+#undef toVector2D(x)
+#undef toVector2d(x)
+#undef getVector3d(v)
 void QAnalyzer::getSketchLengths(int curveIndex)
 {
 	vec lengths; lengths<<0;
@@ -261,6 +448,7 @@ void QAnalyzer::getSketchLengths(int curveIndex)
 	sketchLengths<<lengths[i]-lengths[i-1];
 	this->sketchLengths<<sketchLengths;
 }
+
 bool QAnalyzer::updateJoints()
 {
 	bool isUpdated=false;
@@ -274,10 +462,7 @@ bool QAnalyzer::updateJoints()
 			isUpdated=true;
 		}
 		if(isJoint[i]&&hasJointMarker)
-		{
-			vec2 p0=getPoint(i, 0), p1=getPoint(i, 1);
-			this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
-		}
+		this->addJointMarker(i);
 	}
 	return isUpdated;
 }
@@ -301,9 +486,9 @@ void QAnalyzer::getPlanesRegularity()
 		}
 	}
 }
-void QAnalyzer::update()
+void QAnalyzer::updateRegularity()
 {
-	veci regularity;
+	veci regularity; isSketchCurve=false;
 	for(int i=0; i<3&&i<parallelLines.size(); i++)
 	{
 		for(int j=0; j<parallelLines[i].size(); j++)
@@ -327,6 +512,7 @@ void QAnalyzer::update()
 	#define R this->regularity
 	for(int i=0; i<R.size(); i++)
 	{
+		isSketchCurve=false;
 		switch(R[i])
 		{
 			case VERTICAL: 
@@ -351,30 +537,33 @@ void QAnalyzer::update()
 				regularity<<SAME_POINTS;
 				regularity<<c1<<c2; break;
 			}
+		case LOOP:
+		{
+			int c1=R[++i], c2=R[++i];
+			regularity<<LOOP;
+			regularity<<c1<<c2; break;
+		}
 			case DISTANCE:
 			{
+			isSketchCurve=true;
 				int c1=R[++i], k1=R[++i], planeIndex1=R[++i], c2=R[++i], k2=R[++i], planeIndex2=R[++i];
 				regularity<<DISTANCE<<indexOf(c1, k1)<<planeIndex1<<indexOf(c2, k2)<<planeIndex2; break;
 			}
 			case COPLANAR:
 			{
+			isSketchCurve=true;
 				int c1=R[++i], k1=R[++i], k2=R[++i], planeIndex1=R[++i], planeIndex2=R[++i];
 				regularity<<COPLANAR<<indexOf(c1, k1)<<indexOf(c1, k2)<<planeIndex1<<planeIndex2; break;
 			}
 		case JOINT:
 		{
+			isSketchCurve=true;
 			int c=R[++i], k1=R[++i], k2=R[++i], planeIndex=R[++i];
 			regularity<<JOINT<<indexOf(c, k1)<<indexOf(c, k2)<<planeIndex; break;
 		}
 		}
 	}
 	#undef R
-	for(int i=0; i<contactPoints.size(); i+=2)
-	{
-		regularity<<CONTACT_POINTS;
-		regularity<<contactPoints[i+0];
-		regularity<<contactPoints[i+1];
-	}
 	this->regularity.clear();
 	this->regularity=regularity;
 }
@@ -462,12 +651,12 @@ void QAnalyzer::getClosePoints(int curveIndex1, int curveIndex2)
 }
 int QAnalyzer::indexOf(int curveIndex, int pointIndex)
 {
-	return sketchSizes[curveIndex]+pointIndex;
+	return (isSketchCurve?sketchCurveSizes[curveIndex]:sketchSizes[curveIndex])+pointIndex;
 }
 vec2 QAnalyzer::getPoint(int index)
 {
-	int x=sketchVector[index*2+0];
-	int y=sketchVector[index*2+1];
+	int x=sketchVector[index*3+0];
+	int y=sketchVector[index*3+1];
 	return vec2(x, y);
 }
 void QAnalyzer::setPoint(int curveIndex, int pointIndex, vec2 point)
@@ -495,7 +684,6 @@ bool QAnalyzer::isParallel(const vec2& x, const vec2& y)
 {
 	return abs(1-abs(dot(x.normalized(), y.normalized())))<error;
 }
-
 void QAnalyzer::addParallelLines(vec4 line1, vec4 line2)
 {
 	#define has(x, y) x.indexOf(y)>=0
@@ -570,67 +758,6 @@ bool QAnalyzer::isParallel(int lines, vec4 line)
 	vec2 dir1=avgLineDirections[lines];
 	vec2 dir2=getLineDirection(line);
 	return isParallel(dir1, dir2);
-}
-void QAnalyzer::completeSketchCurves()
-{
-	for(int i=0; i<sketchTypes.size(); i++)
-	{
-		if(hasJointMarker&&isJoint[i])
-		{
-			vec2 p0=getPoint(i, 0), p1=getPoint(i, 1);
-			this->markerPoints<<p0.x()<<p0.y()<<p1.x()<<p1.y();
-		}
-		if(hasCurveIndexMarker)
-		{
-			vec2 p0=getPoint(i, 0);  this->startPoints<<p0.x()<<p0.y();
-		}
-	}
-	this->sketch->path.clear();
-	this->sketch->point3D.clear();
-	for(int i=0, size=0; i<sketchPaths.size(); i++)
-	{
-		this->sketchSizes<<size;
-		size+=sketchPaths[i].size();
-		this->sketchVector+=sketchCurves[i];
-		veci path=sketchPaths[i];
-		veci point2D=sketchCurves[i];
-		for(int j=0, k=0; j<path.size(); j++)
-		{
-			this->sketch->path<<path[j];
-			if(path[j]==MOVE||path[j]==LINE)
-			{
-				int x=point2D[k++], y=point2D[k++];
-				this->sketch->point3D<<x<<y<<sketchPlanes[i];
-			}
-			else
-			{
-				int c1=point2D[k++], c2=point2D[k++]; j++;
-				int c3=point2D[k++], c4=point2D[k++]; j++;
-				int c5=point2D[k++], c6=point2D[k++];
-				this->sketch->point3D<<c1<<c2<<sketchPlanes[i];
-				this->sketch->point3D<<c3<<c4<<sketchPlanes[i];
-				this->sketch->point3D<<c5<<c6<<sketchPlanes[i];
-			}
-		}
-	}
-	for(int i=0; i<sketchTypes.size(); i++)
-	{
-		if(sketchTypes[i]==ENCLOSED_CURVE)
-		this->sketchTypes[i]=CLOSE_CURVE;
-		if(sketchTypes[i]==CLOSE_CURVE)
-		{
-			if(hasCloseCurveCtrlPointsMarker)
-			{
-				for(int j=0; j<sketchCurves[i].size()/2-1; j++)
-				{
-					vec2 p0=getPoint(i, j+0),  p1=getPoint(i, j+1);
-					this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
-				}
-			}
-			int first=indexOf(i, 0), size=sketchPaths[i].size();
-			this->regularity<<SAME_POINTS<<first<<first+size-1;
-		}
-	}
 }
 bool QAnalyzer::equals(const veci& curve, int index1, int index2)
 {
@@ -863,6 +990,7 @@ void QAnalyzer::addJoint(int& jointIndex, vec2 from, vec2 to)
 	this->sketchTypes<<LINE_SEGMENT;
 	this->sketchPlanes<<sketchPlanes[jointIndex];
 	this->isJoint<<true; jointIndex=isJoint.size()-1;
+	if(hasJointMarker)this->addJointMarker(jointIndex);
 }
 bool QAnalyzer::equals(vec2 p1, vec2 p2)
 {
@@ -918,6 +1046,13 @@ void QAnalyzer::save(QString fileName)
 		}
 	}
 	#undef planes
+	for(int i=0; i<sketchVector.size(); i+=3)
+	{
+		int x=sketchVector[i+0];
+		int y=sketchVector[i+1];
+		int p=sketchVector[i+2];
+		textStream<<"k "<<x<<" "<<y<<" "<<p<<endl;
+	}
 	if(!planes.size())textStream<<"PLANES "<<planesSize+1<<endl;
 	for(int i=0; i<regularity.size(); i++)
 	{
@@ -990,9 +1125,7 @@ void draw(QPainter& painter, QVector<QVector<vec2>> pointsCluster)
 }
 void QAnalyzer::drawRegularity(QPainter& painter)
 {
-	#define sketch sketchVector
-	#define pointOf(t) vec2(sketch[t*2+0], sketch[t*2+1])
-	QVector<QVector<vec2>> paralelCenters;
+	QVector<QVector<vec2>> parallelCenters;
 	for(int i=0; i<regularity.size(); i++)
 	{
 		switch(regularity[i])
@@ -1000,7 +1133,7 @@ void QAnalyzer::drawRegularity(QPainter& painter)
 			case VERTICAL: 
 			{
 				int r1=regularity[i+1], r2=regularity[i+2], r3=regularity[i+3];
-				vec2 p1=pointOf(r1), p2=pointOf(r2), m1=(p1+p2)/2, m2=m1+vec2(20, 0);
+				vec2 p1=getPoint(r1), p2=getPoint(r2), m1=(p1+p2)/2, m2=m1+vec2(20, 0);
 				painter.drawLine((int)m1.x(), (int)m1.y(), (int)m2.x(), (int)m2.y());
 				painter.drawText(QPointF((int)m2.x(), (int)m2.y()), "VER"); break;
 			}
@@ -1008,25 +1141,37 @@ void QAnalyzer::drawRegularity(QPainter& painter)
 			{
 				int r1=regularity[i+1], r2=regularity[i+2], r3=regularity[i+3];
 				int r4=regularity[i+4], r5=regularity[i+5], r6=regularity[i+6];
-				vec2 p1=pointOf(r1), p2=pointOf(r2), p3=(p1+p2)/2;
-				vec2 p4=pointOf(r4), p5=pointOf(r5), p6=(p4+p5)/2;
-				insert(paralelCenters, p3, p6); break;
+				vec2 p1=getPoint(r1), p2=getPoint(r2), p3=(p1+p2)/2;
+				vec2 p4=getPoint(r4), p5=getPoint(r5), p6=(p4+p5)/2;
+				insert(parallelCenters, p3, p6); break;
 			}
 			case PERPENDICULAR:
 			{
 				int r1=regularity[i+1], r2=regularity[i+2];
-				int r3=regularity[i+3], r4=regularity[i+4]; vec2 p2=pointOf(r2);
+				int r3=regularity[i+3], r4=regularity[i+4]; vec2 p2=getPoint(r2);
 				painter.drawText(QPointF((int)p2.x(), (int)p2.y()), "PER"); break;
 			}
 			case CONTACT_POINTS: 
 			{
-				int r1=regularity[i+1], r2=regularity[i+2], dy=15; vec2 p=pointOf(r1);
+				int r1=regularity[i+1], r2=regularity[i+2], dy=15; vec2 p=getPoint(r1);
 				painter.drawText(QPointF((int)p.x(), (int)p.y()+dy), "_|_"); break;
 			}
+		case LOOP:
+		{
+			if(hasCloseCurveCtrlPointsMarker)
+			{
+				for(int j=regularity[i+1]; j<regularity[i+2]; j++)
+				{
+					vec2 p0=getPoint(j+0),  p1=getPoint(j+1);
+					painter.drawLine((int)p0.x(), (int)p0.y(), (int)p1.x(), (int)p1.y());
+				}
+			}
+			break;
+		}
 		}
 		i+=count(regularity[i]);
 	}
-	draw(painter, paralelCenters);
+	draw(painter, parallelCenters);
 	#define dir avgLineDirections
 	for(int i=0; i<dir.size(); i++)
 	{ 
@@ -1037,9 +1182,12 @@ void QAnalyzer::drawRegularity(QPainter& painter)
 		QString number=""; for(int j=0; j<=i; j++)number+="I ";
 		painter.drawText(QPointF(p1.x(), p1.y()), number);
 	}
+	for(int i=0; i<sketchChords.size(); i+=2)
+	{
+		vec2 p1=getPoint(sketchChords[i+0]), p2=getPoint(sketchChords[i+1]);
+		painter.drawLine((int)p1.x(), (int)p1.y(), (int)p2.x(), (int)p2.y());
+	}
 	#undef dir
-	#undef sketch 
-	#undef pointOf(t)
 }
 void QAnalyzer::drawMarkers(QPainter& painter)
 {
@@ -1085,4 +1233,5 @@ void QAnalyzer::clear()
 	this->sketchTypes.clear(); 
 	this->sketchSizes.clear(); 
 	this->sketchVector.clear();
+	this->sketchCurveSizes.clear();
 }
