@@ -1,14 +1,14 @@
 #include "QDefine.h"
 
-class QMesh
+class QModel
 {
 	public:
-	QVector<vec> coords; QVector<vec3*> quads;
-	QMesh(veci path, vec point4D, QVector<vec3*> quads);
+	QVector<QVector<vec>> coords; QVector<vec3*> quads;
+	QModel(veci path, vec point4D, veci holes, QVector<vec3*> quads);
 
 	private:
-	QVector<vec4> planes;
 	void getCoordinates();
+	QVector<vec4> planes;
 	qreal curveLength=0.05;
 	vec3 pointAt(vec3* ctrlPoints, qreal t);
 	void addPoint(vec& coordinates, vec3 point, vec3* quad);

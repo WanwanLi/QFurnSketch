@@ -10,6 +10,7 @@ class QAnalyzer
 		AXIS,
 		JOINT,
 		LOOP,
+		HOLE,
 		VERTICAL,
 		PARALLEL, 
 		DISTANCE,
@@ -47,7 +48,7 @@ class QAnalyzer
 	void operator<<(QStringList& stringList);
 	QVector<veci> sketchCurves, sketchPaths;
 	static void save(QTextStream& textStream, veci regularity);
-	veci regularity, joints, samePoints, markerLines, markerPoints, startPoints;
+	veci regularity, joints, holes, samePoints, markerLines, markerPoints, startPoints;
 	void load(veci path, veci point3D, veci sketchVector, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer);
 
 	private:
@@ -92,9 +93,12 @@ class QAnalyzer
 	void setPoint(int curveIndex, int pointIndex, vec2 point);
 	void getCurvesRegularity(int curveIndex1, int curveIndex2);
 	void addJointRegularity(int curveIndex, int jointIndex, int startIndex);
-	enum{LINE_SEGMENT, CLOSE_CURVE, OPEN_CURVE, ENCLOSED_CURVE};
+	enum{LINE_SEGMENT, HOLE_CURVE, CLOSE_CURVE, OPEN_CURVE, ENCLOSED_CURVE};
 
-
+	void addHoleRegularity(int curveIndex, int planeIndex);
+	bool hasHoleMarker=true;
+	void addHoleMarker(int jointIndex);
+	bool isHoleType(int curveIndex, int& planeIndex);
 	int max(veci array);
 	void getSketchVector();
 	void encloseSketchCurves(bool isLoop);

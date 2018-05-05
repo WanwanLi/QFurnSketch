@@ -1,9 +1,9 @@
-#include "QMesh.h"
+#include "QModel.h"
 #include "QSketch.h"
 #define dot vec3::dotProduct
 #define cross vec3::crossProduct
 
-QMesh::QMesh(veci path, vec point4D, QVector<vec3*> quads)
+QModel::QModel(veci path, vec point4D, veci holes, QVector<vec3*> quads)
 {
 	for(int i=0, j=0; i<path.size(); i++)
 	{
@@ -37,19 +37,36 @@ QMesh::QMesh(veci path, vec point4D, QVector<vec3*> quads)
 					point3=vec3(x, y, z);
 					this->addCurve(coordinates,
 					new vec3[4]{point0, point1,
-					point2, point3}, quads[w]); point0=point3;
+					point2, point3}, quads[w]);
+					point0=point3;
 				}
 			}
-			if(coordinates.size()>=6)
-			{
-				this->quads<<quads[w];
-				this->coords<<coordinates;
-			}
+			QVector<vec> coords;
+			coords<<coordinates;
+			this->coords<<coords;
+			this->quads<<quads[w];
 			if(i<path.size())i--;
 		}
 	}
+	for(int i=0; i<holes.size(); i+=2)
+	{
+		int dest=holes[i+0], src=holes[i+1];
+		this->coords[dest]<<coords[src][0];
+		this->coords[src][0].clear();
+	}
+	QVector<QVector<vec>> newCoords;
+	QVector<vec3*> newQuads;
+	for(int i=0; i<this->coords.size(); i++)
+	{
+		if(this->coords[i].size()==1)
+		if(this->coords[i][0].size()<6)continue;
+		newCoords<<this->coords[i];
+		newQuads<<this->quads[i];
+	}
+	this->coords=newCoords;
+	this->quads=newQuads;
 }
-void QMesh::addPoint(vec& coordinates, vec3 point, vec3* quad)
+void QModel::addPoint(vec& coordinates, vec3 point, vec3* quad)
 {
 	QVector3D p00=quad[0],  p01=quad[1], p10=quad[3];
 	QVector3D dr=point-p00, du=p10-p00, dv=p01-p00;
@@ -57,7 +74,7 @@ void QMesh::addPoint(vec& coordinates, vec3 point, vec3* quad)
 	QVector3D x=dv.normalized(), z=cross(x, y);
 	coordinates<<dot(dr, z)/dot(du, z)<<dot(dr, x)/dot(dv, x);
 }
-void QMesh::addCurve(vec& coordinates, vec3* ctrlPoints,  vec3* quad)
+void QModel::addCurve(vec& coordinates, vec3* ctrlPoints,  vec3* quad)
 {
 	qreal totalLength=0.0; 
 	for(int i=1; i<4; i++)
@@ -72,7 +89,7 @@ void QMesh::addCurve(vec& coordinates, vec3* ctrlPoints,  vec3* quad)
 		this->addPoint(coordinates, point, quad);
 	}
 }
-vec3 QMesh::pointAt(vec3* ctrlPoints, qreal t)
+vec3 QModel::pointAt(vec3* ctrlPoints, qreal t)
 {
 	const int degree=3;
 	vec3* B=new vec3[degree+1];

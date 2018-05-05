@@ -1,5 +1,5 @@
-#include "QMesh.h"
 #include <QPainter>
+#include "QModel.h"
 #include "QCanvas.h"
 #include <QMessageBox>
 #include "QOpenGLWindow.h"
@@ -68,11 +68,8 @@ void QCanvas::visualize()
 {
 	QSketch sketch(QSketch::sketchModelFile); if(!sketch.isValid)return;
 	QVector<vec3*> quads=sketch.getPoint4D();
-	qDebug()<<"QCanvas::visualize->quads"<<quads.size();
-	QMesh mesh(sketch.path, sketch.point4D, quads);
-	qDebug()<<"sketch.point4D="<<sketch.point4D;
-	qDebug()<<"QCanvas::visualize->mesh";
-	QOpenGLWindow* window=new QOpenGLWindow(colors, mesh.quads, mesh.coords);
+	QModel model(sketch.path, sketch.point4D, sketch.analyzer.holes, quads);
+	QOpenGLWindow* window=new QOpenGLWindow(colors, model.quads, model.coords);
 	window->resize(400, 300); window->show();
 }
 void QCanvas::resizeImage()

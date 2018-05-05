@@ -14,7 +14,7 @@ class QOpenGLWindow : public QOpenGLWidget, protected QOpenGLFunctions
 	(
 		const QVector<QColor>& colors,
 		const QVector<QVector3D*>& quads, 
-		const QVector<QVector<qreal>>& coords
+		const QVector<QVector<QVector<qreal>>>& coords
 	):
 	QOpenGLWidget(), colors(colors), quads(quads), coords(coords){}
 	void initializeGL(), paintGL(), teardownGL();
@@ -33,12 +33,12 @@ class QOpenGLWindow : public QOpenGLWidget, protected QOpenGLFunctions
 	QPoint mouseMove, mousePos;
 	qreal mouseScroll, mouseDelta;
 	qreal zNear=1, zFar=100, fov=45;
-	QVector<QVector<qreal>> coords;
 	void initializeOpenGLParameters();
 	QOpenGLShaderProgram*glProgram;
 	void timerEvent(QTimerEvent* event);
 	void wheelEvent(QWheelEvent* event);
 	QVector3D eye, center, right, up, forward;
+	QVector<QVector<QVector<qreal>>> coords;
 	void mouseMoveEvent(QMouseEvent* event);
 	void mousePressEvent(QMouseEvent* event);
 	void mouseReleaseEvent(QMouseEvent* event);

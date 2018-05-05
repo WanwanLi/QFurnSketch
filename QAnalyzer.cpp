@@ -14,6 +14,7 @@ QString QAnalyzer::toString(int value)
 	if(value==AXIS)return "AXIS";
 	else if(value==JOINT)return "JON";
 	else if(value==LOOP)return "LOOP";
+	else if(value==HOLE)return "HOLE";
 	else if(value==VERTICAL)return "VER";
 	else if(value==DISTANCE)return "DIS";
 	else if(value==PARALLEL)return "PAR";
@@ -34,6 +35,7 @@ int QAnalyzer::toValue(QString string)
 	if(string=="AXIS")return AXIS;
 	else if(string=="JON")return JOINT;
 	else if(string=="LOOP")return LOOP;
+	else if(string=="HOLE")return HOLE;
 	else if(string=="VER")return VERTICAL;
 	else if(string=="DIS")return DISTANCE;
 	else if(string=="PAR")return PARALLEL;
@@ -56,6 +58,7 @@ int QAnalyzer::count(int value)
 		case AXIS: return 4;
 		case JOINT: return 3;
 		case LOOP: return 2;
+		case HOLE: return 2;
 		case VERTICAL: return 3;
 		case DISTANCE: return 4;
 		case FORWARD: return 3;
@@ -120,6 +123,9 @@ void QAnalyzer::operator<<(QStringList& list)
 		if(value==JOINT)
 		for(int t=1; t<=n; t++)
 		this->joints<<list[t].toInt();
+		else if(value==HOLE)
+		for(int t=1; t<=n; t++)
+		this->holes<<list[t].toInt();
 		else if(value==SAME_POINTS)
 		for(int t=1; t<=n; t++)
 		this->samePoints<<list[t].toInt();
@@ -183,7 +189,6 @@ void QAnalyzer::initializeSketchCurves()
 					sketchPaths2<<sketchPath;
 					sketchCurves2<<sketchCurve;
 				}
-
 			}
 			if(i<path.size())i--;
 		}
@@ -207,6 +212,8 @@ void QAnalyzer::initializeSketchCurves()
 	{
 		int planeIndex;
 		this->sketchPlanes<<i;
+		if(isHoleType(i, planeIndex))
+		this->addHoleRegularity(i, planeIndex);
 		this->isJoint<<isJointType(i, planeIndex);
 		if(isJoint[i])this->sketchPlanes[i]=planeIndex;
 		if(isJoint[i]&&hasJointMarker)this->addJointMarker(i);
@@ -215,6 +222,13 @@ void QAnalyzer::initializeSketchCurves()
 	#undef path
 	#undef viewer
 	#undef point2D
+}
+void QAnalyzer::addHoleRegularity(int curveIndex, int planeIndex)
+{
+	this->sketchPlanes[curveIndex]=planeIndex;
+	this->sketchTypes[curveIndex]=HOLE_CURVE;
+	if(hasHoleMarker)this->addHoleMarker(curveIndex);
+	this->regularity<<HOLE<<planeIndex<<curveIndex;
 }
 int QAnalyzer::max(veci array)
 {
@@ -229,6 +243,15 @@ void QAnalyzer::addJointMarker(int jointIndex)
 	vec2 d=p-q, r=vec2(d.y(), -d.x()).normalized()*5, p0, p1;
 	p0=p+r; p1=p-r; this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
 	p0=q+r; p1=q-r; this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
+}
+void QAnalyzer::addHoleMarker(int curveIndex)
+{
+	for(int i=curveIndex, j=0; j<sketchCurves[i].size()/2-1; j++)
+	{
+		vec2 p=getPoint(i, j+0), q=getPoint(i, j+1);
+		vec2 d=p-q, r=vec2(d.y(), -d.x()).normalized()*5, p0=p-r, p1=q-r;
+		this->markerLines<<p0.x()<<p0.y()<<p1.x()<<p1.y();
+	}
 }
 void QAnalyzer::copySketchCurves()
 {
@@ -348,9 +371,10 @@ void QAnalyzer::encloseSketchCurves(bool isLoop)
 	{
 		if(sketchTypes[i]==ENCLOSED_CURVE)
 		this->sketchTypes[i]=CLOSE_CURVE;
+		if(sketchTypes[i]==HOLE_CURVE)
+		this->sketchTypes[i]=CLOSE_CURVE;
 		if(sketchTypes[i]==CLOSE_CURVE)
 		{
-
 			this->isSketchCurve=!isLoop;
 			int first=indexOf(i, 0), size=sketchPaths[i].size();
 			this->regularity<<(isLoop?LOOP:SAME_POINTS)<<first<<first+size-1;
@@ -541,6 +565,12 @@ void QAnalyzer::updateRegularity()
 		{
 			int c1=R[++i], c2=R[++i];
 			regularity<<LOOP;
+			regularity<<c1<<c2; break;
+		}
+		case HOLE:
+		{
+			int c1=R[++i], c2=R[++i];
+			regularity<<HOLE;
 			regularity<<c1<<c2; break;
 		}
 			case DISTANCE:
@@ -789,6 +819,28 @@ bool QAnalyzer::isJointType(int curveIndex, int& planeIndex)
 	}
 	return false;
 }
+bool QAnalyzer::isHoleType(int curveIndex, int& planeIndex)
+{
+	int i=curveIndex, j; bool isHole;
+	if(sketchTypes[i]==HOLE_CURVE)return true;
+	if(sketchTypes[i]==OPEN_CURVE)return false;
+	if(sketchTypes[i]==LINE_SEGMENT)return false;
+	for(int k=0; k<sketchCurves.size(); k++)
+	{
+		if(sketchTypes[k]==HOLE_CURVE)continue;
+		if(sketchTypes[k]==LINE_SEGMENT)continue;
+		if(k==i||sketchTypes[k]==OPEN_CURVE)continue;
+		for(isHole=true, j=0; j<sketchPaths[i].size()-1; j++)
+		{
+			if(sketchPaths[i][j+1]==CUBIC)continue;
+			vec2 p0=getPoint(i, j+0), p1=getPoint(i, j+1), l, r;
+			qreal d=intersectWithCloseCurve(l, r, k, p0, p1);
+			if(!(d>=0&&isOnOutsideOrEqual(l, r, p0, p1))){isHole=false; break;}
+		}
+		if(isHole){planeIndex=k; return true;}
+	}
+	return false;
+}
 vec2 QAnalyzer::intersect(vec2 p1, vec2 p2, vec2 p3, vec2 p4)
 {
 	qreal x=cross2(p1, p2)*(p3.x()-p4.x())-(p1.x()-p2.x())*cross2(p3, p4);
@@ -948,14 +1000,16 @@ void QAnalyzer::addJointForCloseCurve(int curveIndex, bool isEnclosedCurve)
 	int i=curveIndex; bool b=isEnclosedCurve;
 	QVector<vec2> leftPoint(sketchCurves.size());
 	QVector<vec2> rightPoint(sketchCurves.size());
-	for(int j=0; j<sketchCurves[i].size()/2-(b?2:1); j++)
+	for(int j=0; j<sketchPaths[i].size()-(b?2:1); j++)
 	{
 		vec2 p0=getPoint(i, j+0), p1=getPoint(i, j+1), l, r;
+		if(sketchPaths[i][j+1]==CUBIC)continue;
 		for(int k=0; k<sketchCurves.size(); k++)
 		{
-			if(jointGraph[sketchPlanes[i]][sketchPlanes[k]])continue;
+			if(sketchTypes[k]==HOLE_CURVE)continue;
 			if(sketchTypes[k]==LINE_SEGMENT)continue;
 			if(k==i||sketchTypes[k]==OPEN_CURVE)continue;
+			if(jointGraph[sketchPlanes[i]][sketchPlanes[k]])continue;
 			qreal d=intersectWithCloseCurve(l, r, k, p0, p1);
 			if(d>=0&&isOnOutsideOrEqual(l, r, p0, p1))
 			if(jointIndex[k]<0||d<minDist[k])
