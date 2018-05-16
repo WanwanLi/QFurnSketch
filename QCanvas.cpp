@@ -71,6 +71,7 @@ void QCanvas::visualize()
 	QModel model(sketch.path, sketch.point4D, sketch.analyzer.holes, quads);
 	QOpenGLWindow* window=new QOpenGLWindow(colors, model.quads, model.coords);
 	window->resize(400, 300); window->show();
+	model.save("SketchModelFile");
 }
 void QCanvas::resizeImage()
 {

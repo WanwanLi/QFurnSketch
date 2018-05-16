@@ -91,7 +91,6 @@ var QEnergy::stdDevCurvaturesEnergy(const VectorXv& variables, int start, int en
 		{
 			var curvature=curvatureAt(variables, i); i+=2;
 			curvatures<<curvature; mean+=curvature;
-//qDebug()<<"curvatures[i]="<<curvatures.last().val();
 		}
 	}
 	if(curvatures.size()==0)return 0;
@@ -102,8 +101,6 @@ var QEnergy::stdDevCurvaturesEnergy(const VectorXv& variables, int start, int en
 		var dev=curvature-mean;
 		stdDevCurvature+=dev*dev;
 	}
-//	qDebug()<<"mean curvature="<<mean.val();
-//	qDebug()<<"stdDevCurvature="<<stdDevCurvature.val();
 	return stdDevCurvature;
 }
 var QEnergy::accuracyEnergy(const VectorXv& variables, int start, int end)
@@ -241,7 +238,7 @@ var QEnergy::totalEnergy(const VectorXv& variables)
 				if(isPlaneOnly)
 				{
 					var standardDeviationAngles=weight(t(0))*stdDevAnglesEnergy(variables, t(1), t(2)-1); QD("SDVA");
-					var standardDeviationCurvatures=0.0;//*stdDevCurvaturesEnergy(variables, t(1), t(2)-1); QD("SDVC");
+					var standardDeviationCurvatures=stdDevCurvaturesEnergy(variables, t(1), t(2)-1); QD("SDVC");
 					energy+=standardDeviationCurvatures>0?standardDeviationCurvatures:standardDeviationAngles;
 					energy+=0.1*stdDevScalesEnergy(variables, t(1), t(2)-1); QD("SDVS");
 				}

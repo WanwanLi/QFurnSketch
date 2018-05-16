@@ -95,6 +95,8 @@ class QAnalyzer
 	void addJointRegularity(int curveIndex, int jointIndex, int startIndex);
 	enum{LINE_SEGMENT, HOLE_CURVE, CLOSE_CURVE, OPEN_CURVE, ENCLOSED_CURVE};
 
+
+	void updateHoles();
 	void addHoleRegularity(int curveIndex, int planeIndex);
 	bool hasHoleMarker=true;
 	void addHoleMarker(int jointIndex);

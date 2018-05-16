@@ -390,6 +390,7 @@ void QAnalyzer::run()
 		for(int i=0; i<sketchCurves.size(); i++)
 		if(sketchTypes[i]==OPEN_CURVE)
 		this->completeOpenCurve(i);
+		this->updateHoles();
 		for(int i=0; i<sketchCurves.size(); i++)
 		if(sketchTypes[i]==CLOSE_CURVE)
 		this->addJointForCloseCurve(i, false);
@@ -472,7 +473,18 @@ void QAnalyzer::getSketchLengths(int curveIndex)
 	sketchLengths<<lengths[i]-lengths[i-1];
 	this->sketchLengths<<sketchLengths;
 }
-
+void QAnalyzer::updateHoles()
+{
+	for(int i=0; i<sketchTypes.size(); i++)
+	{
+		if(sketchTypes[i]==CLOSE_CURVE)
+		{
+			int planeIndex;
+			if(isHoleType(i, planeIndex))
+			this->addHoleRegularity(i, planeIndex);
+		}
+	}
+}
 bool QAnalyzer::updateJoints()
 {
 	bool isUpdated=false;
@@ -888,7 +900,8 @@ void QAnalyzer::setLastPoint(int curveIndex, vec2 point)
 }
 void QAnalyzer::addJointRegularity(int curveIndex, int jointIndex, int startIndex)
 {
-	int k=curveIndex, size=sketchCurves[k].size()/2, s=startIndex;
+	int k=curveIndex, size=sketchCurves[k].size()/2;
+	int s=startIndex, last=sketchCurves[jointIndex].size()/2-1;
 	this->regularity<<COPLANAR<<k<<0<<size-1;
 	this->regularity<<sketchPlanes[k]<<sketchPlanes[jointIndex];
 	this->regularity<<COPLANAR<<jointIndex<<s+0<<s+1;
@@ -901,6 +914,11 @@ void QAnalyzer::addJointRegularity(int curveIndex, int jointIndex, int startInde
 	{
 		this->regularity<<JOINT<<k<<0<<1<<sketchPlanes[jointIndex];
 		this->regularity<<JOINT<<k<<size-1<<size-2<<sketchPlanes[jointIndex];
+	}
+	else
+	{
+		this->regularity<<JOINT<<jointIndex<<s+1<<s+2<<sketchPlanes[k];
+		this->regularity<<JOINT<<jointIndex<<s-0<<(s>0?s-1:last-1)<<sketchPlanes[k];
 	}
 	this->jointGraph[sketchPlanes[curveIndex]][sketchPlanes[jointIndex]]=true;
 	this->jointGraph[sketchPlanes[jointIndex]][sketchPlanes[curveIndex]]=true;
@@ -920,13 +938,13 @@ void QAnalyzer::completeOpenCurve(int curveIndex)
 		{
 			for(int j=0, s=sketchCurves[i].size()/2; j<s-1; j++)
 			{
-					p[4]=getPoint(i, j+0); p[5]=getPoint(i, j+1);
-					if(intersectWithEdge(d, l, r, p, isJoint[i]))
-					if(jointIndex.x()<0||d<distance)
-					{
-						distance=d; jointIndex=vec2(i, j);
-						leftPoint=l; rightPoint=r;
-					}
+				p[4]=getPoint(i, j+0); p[5]=getPoint(i, j+1);
+				if(intersectWithEdge(d, l, r, p, isJoint[i]))
+				if(jointIndex.x()<0||d<distance)
+				{
+					distance=d; jointIndex=vec2(i, j);
+					leftPoint=l; rightPoint=r;
+				}
 			}
 		}
 	}
@@ -1129,6 +1147,7 @@ void QAnalyzer::save(QString fileName)
 			textStream<<xyz[i]<<axis[i].x()<<" "<<axis[i].y()<<" "<<axis[i].z()<<endl;
 		}
 	}
+	file.close();
 }
 void insert(QVector<QVector<vec2>>& pointsCluster, vec2 startPoint, vec2 endPoint)
 {
