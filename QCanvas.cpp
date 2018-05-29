@@ -66,12 +66,13 @@ void QCanvas::resizeWindow(int margin)
 }
 void QCanvas::visualize()
 {
-	QSketch sketch(QSketch::sketchModelFile); if(!sketch.isValid)return;
+	QSketch sketch(QSketch::sketch3DFile); if(!sketch.isValid)return;
 	QVector<vec3*> quads=sketch.getPoint4D();
 	QModel model(sketch.path, sketch.point4D, sketch.analyzer.holes, quads);
 	QOpenGLWindow* window=new QOpenGLWindow(colors, model.quads, model.coords);
-	window->resize(400, 300); window->show();
-	model.save("SketchModelFile");
+	window->resize(400, 300); window->show(); model.flatpack();
+	model.saveAsSVGFile("SketchModelFile.svg");
+	model.save(QSketch::sketchModelFile);
 }
 void QCanvas::resizeImage()
 {

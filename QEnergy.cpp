@@ -197,7 +197,7 @@ var QEnergy::weight(int type)
 		case R::PARALLEL: return isPlaneOnly?2:0;
 		case R::PERPENDICULAR_PLANES: return isPlaneOnly?2:0;
 		case R::DISTANCE: return isPlaneOnly?2:0*20;
-		case R::COPLANAR: return isPlaneOnly?5:0*20;
+		case R::COPLANAR: return isPlaneOnly?0*5:0*20;
 		case R::VERTICAL: return isPlaneOnly?2:0*100;
 		case R::PERPENDICULAR: return isPlaneOnly?0:0*0;
 		case R::LOOP: return isPlaneOnly?4:0*200;
@@ -242,7 +242,7 @@ var QEnergy::totalEnergy(const VectorXv& variables)
 					energy+=standardDeviationCurvatures>0?standardDeviationCurvatures:standardDeviationAngles;
 					energy+=0.1*stdDevScalesEnergy(variables, t(1), t(2)-1); QD("SDVS");
 				}
-				else {energy+=weight(t(0))*accuracyEnergy(variables, t(1), t(2)-1); QD("ACC");} break;
+				//else {energy+=weight(t(0))*accuracyEnergy(variables, t(1), t(2)-1); QD("ACC");} break;
 		}
 		i+=R::count(t(0));
 		#undef R
@@ -355,9 +355,6 @@ void QEnergy::getSketchPath(veci path)
 }
 QEnergy::QEnergy(veci path, veci point3D, veci sketch, int planeSize, veci regularity, QVector<vec4> planes, QVector<vec3> axis, QViewer viewer)
 {
-//	this->getSketchPath(path);
-	qDebug()<<"QEnergy::QEnergy.sketchPath="<<sketchPath;
-	qDebug()<<"QEnergy::QEnergy.sketch="<<sketch;
 	this->path=path; this->point3D=point3D;
 	this->sketchVector=sketch;
 	this->regularity=regularity;
@@ -394,7 +391,6 @@ QEnergy::QEnergy(veci path, veci point3D, veci sketch, int planeSize, veci regul
 	}
 	this->sketch=toVectorXd(pixels);
 	this->variables=toVectorXd(variables);
-	qDebug()<<"QEnergy::QEnerg variables="<<variables;
 }
 QVector<QVector3D> QEnergy::toVector3D(QVector<Vector3v> vector3v)
 {

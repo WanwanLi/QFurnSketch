@@ -132,11 +132,10 @@ void QOptimizer::save(QString fileName, QVector<qreal> vector)
 void QOptimizer::quit()
 {
 	if(!energy)return;
+	this->energy->save(QSketch::sketch3DFile);
 	if(energy->isPlaneOnly)
 	{
-		this->energy->save(QSketch::sketch3DFile);
 		this->save("horizontal", energy->horizontal);
 		this->save("forward", energy->forward);
 	}
-	else this->energy->save(QSketch::sketchModelFile);
 }

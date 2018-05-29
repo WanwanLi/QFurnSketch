@@ -2,6 +2,7 @@
 #include <QFile>
 #include "QModel.h"
 #include "QSketch.h"
+#define sign(x) (x>=0?1:-1)
 #define dot vec3::dotProduct
 #define cross vec3::crossProduct
 
@@ -67,27 +68,211 @@ QModel::QModel(veci path, vec point4D, veci holes, QVector<vec3*> quads)
 	this->coords=newCoords;
 	this->quads=newQuads;
 }
-void QModel::save(QString modelName)
+qreal max(vec vector)
 {
-	QDir dir(modelName);
-	dir.removeRecursively();
-	dir=QDir("."); dir.mkdir(modelName);
-	qDebug()<<dir.absoluteFilePath(modelName);
+	qreal max=vector[0];
+	for(qreal v : vector)
+	max=std::max(max, v);
+	return max;
+}
+vec2 min(vec2 a, vec2 b)
+{
+	return vec2(std::min(a.x(), b.x()), std::min(a.y(), b.y()));
+}
+vec2 max(vec2 a, vec2 b)
+{
+	return vec2(std::max(a.x(), b.x()), std::max(a.y(), b.y()));
+}
+void QModel::scaleCoordinates()
+{
+	vec scales;
+	for(vec3* quad : quads)
+	{
+		vec3 p00=quad[0], p01=quad[1];
+		scales<<(p01-p00).length();
+	}
+	qreal maxScale=max(scales);
+	this->transforms.clear();
+	for(int i=0; i<scales.size(); i++)
+	{
+		qreal sx=maxScale/scales[i];
+		qreal sy=sx*aspectRatio(i);
+		QVector<QTransform> transforms;
+		transforms<<QTransform::fromScale(sx, sy);
+		this->transforms<<transforms;
+	}
+	this->update();
+}
+vec4 getBoundingBox(vec coords)
+{
+	#define coordAt(x) vec2(coords[(x)*2+0], coords[(x)*2+1])
+	vec2 minCoord=coordAt(0), maxCoord=coordAt(0);
+	for(int i=0; i<coords.size()/2; i++)
+	{
+		minCoord=min(minCoord, coordAt(i));
+		maxCoord=max(maxCoord, coordAt(i));
+	}
+	return vec4
+	(
+			minCoord.x(), minCoord.y(),
+			maxCoord.x(), maxCoord.y()
+	);
+	#undef coordAt(x)
+}
+#define widthAt(k) (qreal)(boxes[k].z()-boxes[k].x())
+#define heightAt(k) (qreal)(boxes[k].w()-boxes[k].y())
+QVector<vec2> QModel::getPlacement(qreal& maxWidth)
+{
+	QVector<vec2> placement;
+	qreal t=widthAt(0)/10, x=t, y=t;
+	int column=std::ceil(std::sqrt(boxes.size()));
+	for(int i=0, row=0, col=0; i<boxes.size(); i++)
+	{
+			int r=i/column, c=i%column;
+			if(r>row)
+			{
+				qreal maxHeight=0.0;
+				for(int j=row*column; j<r*column; j++)
+				maxHeight=std::max(maxHeight, heightAt(j));
+				x=t; y+=maxHeight+t; col=0; row++;
+			}
+			if(c>col){x+=widthAt(i-1)+t; col++;}
+			maxWidth=std::max(maxWidth, x+widthAt(i)+t);
+			placement<<vec2(x, y);
+	}
+	return placement;
+}
+vec autoAlignedCurve(vec curve, QTransform& transform, int index)
+{
+	#define pointAt(x) vec2(curve[x*2+0], curve[x*2+1])
+	vec2 start=pointAt(index), end=pointAt(index+1);
+	vec2 direction=(end-start).normalized();
+	qreal rotate=-sign(direction.y())*acos(direction.x());
+	QTransform t; t.translate(start.x(), start.y());
+	t.rotateRadians(rotate); t.translate(-start.x(), -start.y());
+	for(int i=0; i<curve.size(); i+=2)
+	t.map(curve[i+0], curve[i+1], &curve[i+0], &curve[i+1]);
+	transform=t; return curve;
+	#undef pointAt(x)
+}
+#undef widthAt(k)
+#undef heightAt(k)
+qreal areaOf(vec4 box)
+{
+	qreal width=box.z()-box.x();
+	qreal height=box.w()-box.y();
+	if(height>=width)
+	return height*height;
+	else return height*width;
+}
+void QModel::rotateCoordinates()
+{
+	this->boxes.clear();
+	this->transforms.clear();
+	for(auto coord : coords)
+	{
+		vec curve=coord[0];
+		vec4 minBox=getBoundingBox(curve);
+		QTransform finalTransform, transform;
+		for(int i=0; i<curve.size()/2; i++)
+		{
+			curve=autoAlignedCurve(coord[0], transform, i);
+			vec4 box=getBoundingBox(curve);
+			if(areaOf(box)<areaOf(minBox))
+			{
+				minBox=box;
+				finalTransform=transform;
+			}
+		}
+		this->boxes<<minBox;
+		QVector<QTransform> transforms;
+		transforms<<finalTransform;
+		this->transforms<<transforms;
+	}
+	this->update();
+}
+void QModel::flatpack()
+{
+	qreal width=0, dx, dy, sx, sy;
+	this->scaleCoordinates();
+	this->rotateCoordinates();
+	auto placement=getPlacement(width);
+	this->transforms.clear();
+	for(int i=0; i<quads.size(); i++)
+	{
+		QTransform t1;
+		dx=-boxes[i].x();
+		dy=-boxes[i].y();
+		t1.translate(dx, dy);
+		QTransform t2;
+		dx=placement[i].x();
+		dy=placement[i].y();
+		t2.translate(dx, dy);
+		QTransform t3;
+		sx=outputSize/width;
+		t3.scale(sx, sx);
+		QVector<QTransform> transform;
+		transform<<t1<<t2<<t3;
+		this->transforms<<transform;
+	}
+	this->update();
+}
+void QModel::update()
+{
+	for(int i=0; i<coords.size(); i++)
+	{
+		for(int j=0; j<coords[i].size(); j++)
+		{
+			for(int k=0; k<coords[i][j].size(); k+=2)
+			{
+				qreal u=coords[i][j][k+0];
+				qreal v=coords[i][j][k+1];
+				for(auto transform : transforms[i])
+				{
+					qreal u1, v1;
+					transform.map
+					(u, v, &u1, &v1);
+					u=u1; v=v1;
+				}
+				this->coords[i][j][k+0]=u;
+				this->coords[i][j][k+1]=v;
+			}
+		}
+	}
+}
+void QModel::save(QString fileName)
+{
+	QFile file(fileName); QString endl="\r\n";
+	if(!file.open(QIODevice::WriteOnly))return;
+	QTextStream textStream(&file);
+	QString size=num(outputSize);
+	textStream<<"s "<<size<<" "<<size<<endl;
+	for(int i=0; i<coords.size(); i++)
+	{
+		for(int j=0; j<coords[i].size(); j++)
+		{
+			for(int k=0; k<coords[i][j].size(); k+=2)
+			{
+				textStream<<(k==0?"m ":"l ");
+				qreal u=coords[i][j][k+0];
+				qreal v=coords[i][j][k+1];
+				textStream<<num((int)(u))<<" ";
+				textStream<<num((int)(v))<<endl;
+			}
+		}
+	}
+	file.close();
+}
+void QModel::saveAsSVGFile(QString fileName)
+{
+	QFile file(fileName); QString endl="\r\n";
+	if(!file.open(QIODevice::WriteOnly))return;
 	QString svgStart="<svg height=\"1000\" width=\"1000\" ";
 	svgStart+="version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\">";
 	QString svgEnd="\" fill=\"none\" stroke=\"blue\" stroke-width=\"1\"/></svg>";
+	QTextStream textStream(&file); textStream<<svgStart<<endl; textStream<<"<path d=\""<<endl;
 	for(int i=0; i<coords.size(); i++)
 	{
-		if(this->coords[i].size()==1)
-		if(this->coords[i][0].size()<6)continue;
-		QString fileName=modelName;
-		fileName+="\\closed_curve_"+num(i)+".svg";
-		QFile file(fileName); QString endl="\r\n";
-		if(!file.open(QIODevice::WriteOnly))continue;
-		QTextStream textStream(&file);
-		textStream<<svgStart<<endl;
-		textStream<<"<path d=\""<<endl;
-		qreal w=800, s=aspectRatio(i);
 		for(int j=0; j<coords[i].size(); j++)
 		{
 			for(int k=0; k<coords[i][j].size(); k+=2)
@@ -95,14 +280,14 @@ void QModel::save(QString modelName)
 				textStream<<(k==0?"M ":"L ");
 				qreal u=coords[i][j][k+0];
 				qreal v=coords[i][j][k+1];
-				textStream<<num((int)(u*w*s))<<" ";
-				textStream<<num((int)(v*w))<<endl;
+				textStream<<num((int)(u))<<" ";
+				textStream<<num((int)(v))<<endl;
 			}
 			textStream<<" Z ";
 		}
-		textStream<<svgEnd<<endl;
-		file.close();
 	}
+	textStream<<svgEnd<<endl;
+	file.close();
 }
 qreal QModel::aspectRatio(int quadIndex)
 {
@@ -115,7 +300,7 @@ qreal QModel::aspectRatio(int quadIndex)
 	vec3 x=dv.normalized(), z=cross(x, y);
 	qreal width=dv.length();
 	qreal height=dot(du, z);
-	return height/width;
+	return width/height;
 }
 void QModel::addPoint(vec& coordinates, vec3 point, vec3* quad)
 {

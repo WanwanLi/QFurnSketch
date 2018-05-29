@@ -14,7 +14,7 @@ QSketch::QSketch()
 	this->inflator=new QThread();
 	this->normalizer=new QThread();
 	this->optimizer2D=newQOptimizer(inflator, sketch2DFile, 4000);
-	this->optimizer3D=newQOptimizer(normalizer, sketch3DFile, 600);
+	this->optimizer3D=newQOptimizer(normalizer, sketch3DFile, 2000);
 }
 QSketch::QSketch(veci path, veci point3D, QViewer viewer)
 {
@@ -191,7 +191,7 @@ void QSketch::finished()
 	{
 		this->horizontal=open("horizontal");
 		this->forward=open("forward");
-	//	this->displayRegularity3D=true;
+		//this->displayRegularity3D=true;
 	}
 }
 QSketch::QSketch(QString fileName)
